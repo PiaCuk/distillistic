@@ -3,7 +3,7 @@ import glob
 
 import torch
 
-from utils import CustomKLDivLoss, SoftKLDivLoss, set_seed, create_dataloader, create_weighted_dataloader, create_distiller
+from distillistic import CustomKLDivLoss, SoftKLDivLoss, set_seed, create_dataloader, create_weighted_dataloader, create_distiller
 
 
 def eval(

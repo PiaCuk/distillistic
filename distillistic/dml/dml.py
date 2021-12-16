@@ -9,7 +9,7 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from KD_Lib.KD.common.utils import ECELoss
+from distillistic import ECELoss
 
 
 class DML:
@@ -248,6 +248,7 @@ class DML:
                 self.writer.add_scalar("Loss/Train average", epoch_loss, ep)
                 self.writer.add_scalar("Accuracy/Train average", epoch_acc, ep)
                 self.writer.add_scalar("Optimizer/Distillation weight", self.distil_weight, ep)
+                self.writer.add_scalar("Accuracy/Best student", self._evaluate_model(self.best_student, verbose=False)[1], ep)
 
             loss_arr.append(epoch_loss)
 
@@ -288,11 +289,12 @@ class DML:
                 pred = output.argmax(dim=1, keepdim=True)
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
+        accuracy = correct / length_of_dataset
+        
         if verbose:
-            print(f"Accuracy: {correct/length_of_dataset}")
+            print(f"Accuracy: {accuracy}")
 
-        epoch_val_acc = correct / length_of_dataset
-        return outputs, epoch_val_acc
+        return outputs, accuracy
 
     def evaluate(self):
         """

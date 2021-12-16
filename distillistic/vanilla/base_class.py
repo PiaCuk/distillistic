@@ -9,7 +9,7 @@ import os
 from tqdm import tqdm
 import statistics as s
 
-from KD_Lib.KD.common.utils import ECELoss
+from distillistic import ECELoss
 
 
 class BaseClass:
