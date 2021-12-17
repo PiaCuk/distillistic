@@ -1,5 +1,7 @@
 from .models import (
     CustomResNet,
+    resnet18,
+    resnet50,
 )
 
 from .vanilla import (
@@ -13,6 +15,8 @@ from .dml import (
 from tf_kd import (
     VirtualTeacher,
 )
+
+from data import *
 
 from utils import *
 

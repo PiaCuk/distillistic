@@ -3,7 +3,7 @@ import glob
 
 import torch
 
-from distillistic import CustomKLDivLoss, SoftKLDivLoss, set_seed, create_dataloader, create_weighted_dataloader, create_distiller
+from distillistic import CustomKLDivLoss, SoftKLDivLoss, set_seed, FMNIST_loader, FMNIST_weighted_loader, create_distiller
 
 
 def test_distiller(
@@ -35,13 +35,13 @@ def test_distiller(
 
     # Create DataLoaders
     if use_weighted_dl:
-        train_loader = create_weighted_dataloader(
+        train_loader = FMNIST_weighted_loader(
             batch_size, train=True, generator=g, workers=8)
-        test_loader = create_weighted_dataloader(
+        test_loader = FMNIST_weighted_loader(
             batch_size, train=False, generator=g, workers=8)
     else:
-        train_loader = create_dataloader(batch_size, train=True, generator=g, workers=8)
-        test_loader = create_dataloader(batch_size, train=False, generator=g, workers=8)
+        train_loader = FMNIST_loader(batch_size, train=True, generator=g, workers=8)
+        test_loader = FMNIST_loader(batch_size, train=False, generator=g, workers=8)
 
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

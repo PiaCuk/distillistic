@@ -1,3 +1,5 @@
 from resnet import (
-    CustomResNet
+    CustomResNet,
+    resnet18,
+    resnet50
 )

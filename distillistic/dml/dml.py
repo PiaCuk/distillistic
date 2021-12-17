@@ -300,17 +300,19 @@ class DML:
 
         return outputs, accuracy
 
-    def evaluate(self):
+    def evaluate(self, verbose=True):
         """
         Evaluate method for printing accuracies of the trained student networks
 
         """
 
         for i, student in enumerate(self.student_cohort):
-            print("-" * 80)
+            if verbose:
+                print("-" * 80)
+                print(f"Evaluating student {i}")
+            
             model = deepcopy(student).to(self.device)
-            print(f"Evaluating student {i}")
-            out, acc = self._evaluate_model(model)
+            out, acc = self._evaluate_model(model, verbose=verbose)
 
         return acc
 

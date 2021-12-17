@@ -19,10 +19,11 @@ class CustomResNet(nn.Module):
         }
         # Using a pretrained ResNet backbone
         self.resnet_model = resnets[resnet_version](pretrained=pretrained)
-        # Replace old FC layer with Identity so we can train our own
-        linear_size = list(self.resnet_model.children())[-1].in_features
-        # replace final layer for fine tuning
-        self.resnet_model.fc = nn.Linear(linear_size, num_classes)
+        if num_classes != 1000:
+            # Replace old FC layer with Identity so we can train our own
+            linear_size = list(self.resnet_model.children())[-1].in_features
+            # replace final layer for fine tuning
+            self.resnet_model.fc = nn.Linear(linear_size, num_classes)
 
         if last_layer_only:  # option to only tune the fully-connected layers
             for child in list(self.resnet_model.children())[:-1]:
@@ -31,3 +32,19 @@ class CustomResNet(nn.Module):
 
     def forward(self, X):
         return self.resnet_model(X)
+
+
+def resnet18(num_classes, pretrained=False, last_layer_only=False):
+    return CustomResNet(num_classes=num_classes,
+                        resnet_version=18,
+                        pretrained=pretrained,
+                        last_layer_only=last_layer_only
+                        )
+
+
+def resnet50(num_classes, pretrained=False, last_layer_only=False):
+    return CustomResNet(num_classes=num_classes,
+                        resnet_version=50,
+                        pretrained=pretrained,
+                        last_layer_only=last_layer_only
+                        )

@@ -1,9 +1,10 @@
 import os
+import statistics as s
 
 import torch
 
-from distillistic.utils import (CustomKLDivLoss, SoftKLDivLoss, create_dataloader,
-                   create_distiller, create_weighted_dataloader, set_seed)
+from distillistic.utils import (CustomKLDivLoss, SoftKLDivLoss, FMNIST_loader,
+                                create_distiller, FMNIST_weighted_loader, set_seed)
 
 
 def distillation_experiment(
@@ -47,53 +48,44 @@ def distillation_experiment(
 
     # Create DataLoaders
     if use_weighted_dl:
-        train_loader = create_weighted_dataloader(
+        train_loader = FMNIST_weighted_loader(
             batch_size, train=True, generator=g, workers=15)
-        test_loader = create_weighted_dataloader(
+        test_loader = FMNIST_weighted_loader(
             batch_size, train=False, generator=g, workers=15)
     else:
-        train_loader = create_dataloader(batch_size, train=True, generator=g, workers=15)
-        test_loader = create_dataloader(batch_size, train=False, generator=g, workers=15)
+        train_loader = FMNIST_loader(
+            batch_size, train=True, generator=g, workers=15)
+        test_loader = FMNIST_loader(
+            batch_size, train=False, generator=g, workers=15)
 
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    best_acc_list = []
 
     for i in range(runs):
         print(f"Starting run {i}")
         run_path = os.path.join(save_path, algo + str(i).zfill(3))
 
         distiller = create_distiller(
-            algo, train_loader, test_loader, device, save_path=run_path,
-            loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature, num_students=num_students)
+            algo, train_loader, test_loader, device, save_path=run_path, loss_fn=loss_fn, lr=lr,
+            distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained)
 
-        # epochs, plot_losses, save_model, save_model_path, use_scheduler
-        param_list = [epochs, False, True, run_path, use_scheduler]
+        params = {"epochs": epochs, "plot_losses": False, "save_model": True,
+                "save_model_path": run_path, "use_scheduler": use_scheduler}
 
         if algo == "dml" or algo == "dml_e":
             # Run DML or DML_e
-            distiller.train_students(*param_list, schedule_distil_weight)
+            acc = distiller.train_students(**params, schedule_distil_weight=schedule_distil_weight)
         elif algo == "tfkd":
-            distiller.train_student(*param_list, smooth_teacher=False)
+            acc = distiller.train_student(**params, smooth_teacher=False)
         else:
-            if use_pretrained:
-                # Use pre-trained teacher to save computation
-                if use_weighted_dl:
-                    state_dict = torch.load(
-                        "/data1/9cuk/kd_lib/saved_models/vanilla001/teacher.pt")
-                else:
-                    state_dict = torch.load(
-                        "/data1/9cuk/kd_lib/saved_models/vanilla000/teacher.pt")
-                
-                distiller.teacher_model.load_state_dict(state_dict)
+            if not use_pretrained:
+                distiller.train_teacher(**params)
+            acc = distiller.train_student(**params)
 
-                # Optimal temperature found with LBFGS
-                # scaled_model = ModelWithTemperature(distiller.teacher_model)
-                # scaled_model.set_temperature(test_loader)
-                # distiller.temp = scaled_model.temperature.item()
-                # distiller.temp = 1.243
-            else:
-                # Train teacher from scratch and save the model
-                distiller.train_teacher(*param_list)
+        best_acc_list.append(acc)
+        mean_acc = s.mean(best_acc_list)
 
-            # Train student from scratch
-            distiller.train_student(*param_list)
+        print(f"Mean validation accuracy of best model: {mean_acc}")
+        return mean_acc
