@@ -1,6 +1,7 @@
 matplotlib
 numpy
 pandas
+tensorboard
 torch
 torchtext
 torchvision

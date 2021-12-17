@@ -5,7 +5,10 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from distillistic import DML, VanillaKD, VirtualTeacher, resnet18, resnet50
+from distillistic.DML import DML
+from distillistic.Vanilla import VanillaKD
+from distillistic.Tf_KD import VirtualTeacher
+from distillistic.models import resnet18, resnet50
 
 
 class ECELoss(torch.nn.Module):

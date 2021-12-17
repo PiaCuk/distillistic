@@ -3,7 +3,8 @@ import glob
 
 import torch
 
-from distillistic import CustomKLDivLoss, SoftKLDivLoss, set_seed, FMNIST_loader, FMNIST_weighted_loader, create_distiller
+from distillistic.data import FMNIST_loader, FMNIST_weighted_loader
+from distillistic.utils import CustomKLDivLoss, SoftKLDivLoss, create_distiller, set_seed
 
 
 def test_distiller(

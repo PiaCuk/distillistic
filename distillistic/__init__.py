@@ -4,22 +4,35 @@ from .models import (
     resnet50,
 )
 
-from .vanilla import (
+from .Vanilla import (
     VanillaKD,
 )
 
-from .dml import (
+from .DML import (
     DML,
 )
 
-from tf_kd import (
+from .Tf_KD import (
     VirtualTeacher,
 )
 
-from data import *
+from .data import (
+    FMNIST_loader,
+    FMNIST_weighted_loader,
+)
 
-from utils import *
+from .utils import (
+    ECELoss,
+    CustomKLDivLoss,
+    SoftKLDivLoss,
+    set_seed,
+    create_distiller
+)
 
-from train import *
+from .train import (
+    distillation_experiment,
+)
 
-from test import *
+from .test import (
+    test_distiller,
+)

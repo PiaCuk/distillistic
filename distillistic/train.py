@@ -3,8 +3,8 @@ import statistics as s
 
 import torch
 
-from distillistic.utils import (CustomKLDivLoss, SoftKLDivLoss, FMNIST_loader,
-                                create_distiller, FMNIST_weighted_loader, set_seed)
+from distillistic.data import FMNIST_loader, FMNIST_weighted_loader
+from distillistic.utils import CustomKLDivLoss, SoftKLDivLoss, create_distiller, set_seed
 
 
 def distillation_experiment(
