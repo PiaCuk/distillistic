@@ -6,7 +6,7 @@ from distillistic.utils import (CustomKLDivLoss, SoftKLDivLoss, create_dataloade
                    create_distiller, create_weighted_dataloader, set_seed)
 
 
-def train_distiller(
+def distillation_experiment(
     algo,
     runs,
     epochs,

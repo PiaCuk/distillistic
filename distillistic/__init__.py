@@ -4,7 +4,6 @@ from .models import (
 
 from .vanilla import (
     VanillaKD,
-    ECELoss,
 )
 
 from .dml import (
@@ -18,3 +17,5 @@ from tf_kd import (
 from utils import *
 
 from train import *
+
+from test import *

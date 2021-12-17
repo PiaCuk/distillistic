@@ -6,7 +6,7 @@ import torch
 from distillistic import CustomKLDivLoss, SoftKLDivLoss, set_seed, create_dataloader, create_weighted_dataloader, create_distiller
 
 
-def eval(
+def test_distiller(
     algo,
     load_dir,
     batch_size,
@@ -69,18 +69,3 @@ def eval(
         state_dict = torch.load(model_pt, map_location=device)
         distiller.student_cohort[0].load_state_dict(state_dict)
         distiller.evaluate()
-
-
-if __name__ == "__main__":
-    for i in range(5):
-        eval(
-            "dml",
-            "Experiments/super_convergence0/dml00{}".format(i),
-            1,
-            loss_fn=CustomKLDivLoss(apply_softmax=True),
-            lr=0.005,
-            distil_weight=0.5,
-            temperature=10,
-            use_weighted_dl=False,
-            seed=42,
-        )

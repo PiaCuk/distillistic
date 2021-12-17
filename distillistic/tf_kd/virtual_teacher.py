@@ -71,7 +71,7 @@ class VirtualTeacher:
                 "Either an invalid device or CUDA is not available. Defaulting to CPU."
             )
             self.device = torch.device("cpu")
-        
+
         self.student_model = student_model.to(self.device)
         self.ece_loss = ECELoss(n_bins=15).to(self.device)
 
@@ -99,7 +99,8 @@ class VirtualTeacher:
         loss_arr = []
         length_of_dataset = len(self.train_loader.dataset)
         best_acc = 0.0
-        self.best_student_model_weights = deepcopy(self.student_model.state_dict())
+        self.best_student_model_weights = deepcopy(
+            self.student_model.state_dict())
 
         if use_scheduler:
             optim_lr = self.optimizer_student.param_groups[0]["lr"]
@@ -129,7 +130,8 @@ class VirtualTeacher:
 
                 student_out = self.student_model(data)
 
-                loss = self.calculate_kd_loss(student_out, label, smooth_teacher=smooth_teacher)
+                loss = self.calculate_kd_loss(
+                    student_out, label, smooth_teacher=smooth_teacher)
 
                 if isinstance(loss, tuple):
                     loss, ce_loss, divergence = loss
@@ -138,8 +140,9 @@ class VirtualTeacher:
 
                 if isinstance(student_out, tuple):
                     student_out = student_out[0]
-                
-                student_calibration.append(self.ece_loss(student_out, label).item())
+
+                student_calibration.append(
+                    self.ece_loss(student_out, label).item())
 
                 out_dist = Categorical(logits=student_out)
                 entropy = out_dist.entropy().mean(dim=0)
@@ -175,16 +178,23 @@ class VirtualTeacher:
                 self.writer.add_scalar("Loss/Divergence student", s.mean(student_divergence), ep)
                 self.writer.add_scalar("Loss/Entropy student", s.mean(student_entropy), ep)
                 self.writer.add_scalar("Loss/Calibration student", s.mean(student_calibration), ep)
+                self.writer.add_scalar("Accuracy/Best student", best_acc, ep)
                 if use_scheduler:
                     self.writer.add_scalar("Optimizer/lr student", scheduler_student.get_last_lr()[0], ep)
 
             loss_arr.append(epoch_loss)
 
-        self.student_model.load_state_dict(self.best_student_model_weights)
+        print(
+            f"The best student model validation accuracy {best_acc}")
+
         if save_model:
-            torch.save(self.student_model.state_dict(), os.path.join(save_model_path, "student.pt"))
+            torch.save(self.best_student_model_weights,
+                       os.path.join(save_model_path, "student.pt"))
+
         if plot_losses:
             plt.plot(loss_arr)
+
+        return best_acc
 
     def calculate_kd_loss(self, y_pred_student, y_true, smooth_teacher=True):
         """
@@ -197,18 +207,21 @@ class VirtualTeacher:
         num_classes = y_pred_student.shape[1]
 
         virtual_teacher = torch.ones_like(y_pred_student, device=self.device)
-        virtual_teacher = virtual_teacher * (1 - self.correct_prob) / (num_classes - 1)
+        virtual_teacher = virtual_teacher * \
+            (1 - self.correct_prob) / (num_classes - 1)
         for i in range(y_pred_student.shape[0]):
             virtual_teacher[i, y_true[i]] = self.correct_prob
 
-        teacher_out = F.softmax(virtual_teacher / self.temp, dim=1) if smooth_teacher else virtual_teacher
+        teacher_out = F.softmax(
+            virtual_teacher / self.temp, dim=1) if smooth_teacher else virtual_teacher
         soft_student_out = F.log_softmax(y_pred_student / self.temp, dim=1)
 
         supervised = F.cross_entropy(y_pred_student, y_true)
         distillation = (self.temp ** 2) * F.kl_div(input=soft_student_out,
                                                    target=teacher_out,
                                                    reduction='batchmean', log_target=False)
-        loss = (1 - self.distil_weight) * supervised + self.distil_weight * distillation
+        loss = (1 - self.distil_weight) * supervised + \
+            self.distil_weight * distillation
         return loss, supervised, distillation
 
     def evaluate(self, verbose=True):
@@ -235,11 +248,11 @@ class VirtualTeacher:
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         accuracy = correct / length_of_dataset
-        
+
         if verbose:
             print("-" * 80)
             print(f"Accuracy: {accuracy}")
-        
+
         return accuracy
 
     def get_parameters(self):
@@ -247,7 +260,9 @@ class VirtualTeacher:
         Get the number of parameters for the student network
         """
 
-        student_params = sum(p.numel() for p in self.student_model.parameters())
+        student_params = sum(p.numel()
+                             for p in self.student_model.parameters())
 
         print("-" * 80)
-        print(f"Total parameters for the student network are: {student_params}")
+        print(
+            f"Total parameters for the student network are: {student_params}")

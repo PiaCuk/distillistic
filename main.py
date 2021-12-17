@@ -1,6 +1,6 @@
 import os
 
-from distillistic import train_distiller, CustomKLDivLoss, SoftKLDivLoss
+from distillistic import distillation_experiment, test_distiller, CustomKLDivLoss, SoftKLDivLoss
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -25,4 +25,17 @@ if __name__ == "__main__":
             "schedule_distil_weight": False,
             "seed": 42,
         }
-        train_distiller(**params)
+        distillation_experiment(**params)
+
+    for i in range(5):
+        test_distiller(
+            params,
+            "Experiments/super_convergence0/dml00{}".format(i),
+            1,
+            loss_fn=CustomKLDivLoss(apply_softmax=True),
+            lr=0.005,
+            distil_weight=0.5,
+            temperature=10,
+            use_weighted_dl=False,
+            seed=42,
+        )

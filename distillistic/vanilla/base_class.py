@@ -271,11 +271,17 @@ class BaseClass:
 
             loss_arr.append(epoch_loss)
 
-        self.student_model.load_state_dict(self.best_student_model_weights)
+        print(
+            f"The best student model validation accuracy {best_acc}")
+
         if save_model:
-            torch.save(self.student_model.state_dict(), os.path.join(save_model_path, "student.pt"))
+            torch.save(self.best_student_model_weights,
+                       os.path.join(save_model_path, "student.pt"))
+
         if plot_losses:
             plt.plot(loss_arr)
+
+        return best_acc
 
     def train_student(
         self,
@@ -338,6 +344,7 @@ class BaseClass:
         if verbose:
             print("-" * 80)
             print("Validation Accuracy: {}".format(accuracy))
+        
         return outputs, accuracy
 
     def evaluate(self, teacher=False, verbose=True):

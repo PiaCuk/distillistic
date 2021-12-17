@@ -103,7 +103,8 @@ class DML:
 
         num_students = len(self.student_cohort)
         length_of_dataset = len(self.train_loader.dataset)
-        epoch_len = len(self.train_loader) # int(length_of_dataset / self.train_loader.batch_size)
+        # int(length_of_dataset / self.train_loader.batch_size)
+        epoch_len = len(self.train_loader)
 
         best_acc = 0.0
         self.best_student_model_weights = deepcopy(
@@ -112,8 +113,8 @@ class DML:
         self.best_student_id = 0
 
         warm_up_pct = 0.1
-                
-        if use_scheduler: 
+
+        if use_scheduler:
             self.student_schedulers = []
 
             for i in range(num_students):
@@ -125,7 +126,7 @@ class DML:
                 optim_lr = self.student_optimizers[i].param_groups[0]["lr"]
                 self.student_schedulers.append(torch.optim.lr_scheduler.OneCycleLR(
                     self.student_optimizers[i], max_lr=optim_lr, epochs=epochs, steps_per_epoch=epoch_len, pct_start=warm_up_pct))
-        
+
         if schedule_distil_weight:
             self.target_distil_weight = self.distil_weight
             warm_up = int(2 * warm_up_pct * epochs)
@@ -142,11 +143,12 @@ class DML:
 
             if schedule_distil_weight:
                 if ep < warm_up:
-                    self.distil_weight = ((ep + 1e-8) / warm_up) * self.target_distil_weight
+                    self.distil_weight = (
+                        (ep + 1e-8) / warm_up) * self.target_distil_weight
                 else:
                     self.distil_weight = self.target_distil_weight
 
-            #for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
+            # for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
             for (data, label) in self.train_loader:
 
                 data = data.to(self.device)
@@ -223,11 +225,10 @@ class DML:
 
                 if epoch_val_acc > best_acc:
                     best_acc = epoch_val_acc
+                    best_student_id = student_id
                     self.best_student_model_weights = deepcopy(
                         student.state_dict())
-                    self.best_student = student
-                    self.best_student_id = student_id
-
+                    
                 if self.log:
                     self.writer.add_scalar(
                         "Accuracy/Validation student"+str(student_id), epoch_val_acc, ep)
@@ -239,7 +240,7 @@ class DML:
                         "Loss/Entropy student"+str(student_id), cohort_entropy[student_id], ep)
                     self.writer.add_scalar(
                         "Loss/Calibration student"+str(student_id), cohort_calibration[student_id], ep)
-                    
+
                     if use_scheduler:
                         self.writer.add_scalar(
                             "Optimizer/lr student"+str(student_id), self.student_schedulers[student_id].get_last_lr()[0], ep)
@@ -248,20 +249,23 @@ class DML:
                 self.writer.add_scalar("Loss/Train average", epoch_loss, ep)
                 self.writer.add_scalar("Accuracy/Train average", epoch_acc, ep)
                 self.writer.add_scalar("Optimizer/Distillation weight", self.distil_weight, ep)
-                self.writer.add_scalar("Accuracy/Best student", self._evaluate_model(self.best_student, verbose=False)[1], ep)
+                self.writer.add_scalar("Accuracy/Best student", best_acc, ep)
 
             loss_arr.append(epoch_loss)
 
-        self.best_student.load_state_dict(self.best_student_model_weights)
+        print(
+            f"The best student model is the model number {best_student_id} in the cohort. Validation accuracy {best_acc}")
+        
         if save_model:
-            print(
-                f"The best student model is the model number {self.best_student_id} in the cohort")
             if not os.path.isdir(save_model_path):
                 os.mkdir(save_model_path)
-            torch.save(self.best_student.state_dict(), os.path.join(
-                save_model_path, ("student" + str(self.best_student_id) + ".pt")))
+            torch.save(self.best_student_model_weights, os.path.join(
+                save_model_path, ("student" + str(best_student_id) + ".pt")))
+
         if plot_losses:
             plt.plot(loss_arr)
+
+        return best_acc
 
     def _evaluate_model(self, model, verbose=True):
         """
@@ -290,7 +294,7 @@ class DML:
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         accuracy = correct / length_of_dataset
-        
+
         if verbose:
             print(f"Accuracy: {accuracy}")
 
@@ -307,6 +311,8 @@ class DML:
             model = deepcopy(student).to(self.device)
             print(f"Evaluating student {i}")
             out, acc = self._evaluate_model(model)
+
+        return acc
 
     def get_parameters(self):
         """
