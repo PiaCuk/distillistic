@@ -1,14 +1,14 @@
 import os
 
-from distillistic import (CustomKLDivLoss, distillation_experiment,
-                          test_distiller)
+from distillistic import (CustomKLDivLoss, FMNIST_experiment,
+                          FMNIST_test)
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     dataset_path = "/home/pia/Documents/ImageNet"
-    save_path = "/home/pia/Documents/distillistic/experiments"
+    save_path = "/home/pia/Documents/distillistic/experiments/test"
 
     # Use new universal main
     for algo in ["dml", "dml_e", "tfkd", "vanilla"]:
@@ -29,4 +29,4 @@ if __name__ == "__main__":
             "schedule_distil_weight": False,
             "seed": 42,
         }
-        distillation_experiment(**params)
+        FMNIST_experiment(**params)

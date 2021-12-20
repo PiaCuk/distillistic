@@ -5,11 +5,11 @@ import statistics as s
 import torch
 
 from distillistic.data import FMNIST_loader
-from distillistic.utils import (CustomKLDivLoss, SoftKLDivLoss,
-                                create_distiller, set_seed)
+from distillistic.utils import CustomKLDivLoss, set_seed
+from distillistic.distiller import create_distiller
 
 
-def distillation_experiment(
+def FMNIST_experiment(
     algo,
     runs,
     epochs,
@@ -45,17 +45,17 @@ def distillation_experiment(
     :param schedule_distil_weight (bool): True to increase distil_weight from 0 to distil_weight over warm-up period
     :param seed: Random seed
     """
+    # Set device to be trained on
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # Set seed for all libraries and return torch.Generator
     g = set_seed(seed) if seed is not None else None
+    workers = 15 if torch.cuda.is_available() else 4
 
     # Create DataLoaders
     train_loader = FMNIST_loader("data/FashionMNIST",
-                                 batch_size, train=True, generator=g, workers=15, weighted_sampler=use_weighted_dl)
+                                 batch_size, train=True, generator=g, workers=workers, weighted_sampler=use_weighted_dl)
     test_loader = FMNIST_loader("data/FashionMNIST",
-                                batch_size, train=False, generator=g, workers=15, weighted_sampler=use_weighted_dl)
-
-    # Set device to be trained on
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+                                batch_size, train=False, generator=g, workers=workers, weighted_sampler=use_weighted_dl)
 
     best_acc_list = []
 
@@ -90,7 +90,7 @@ def distillation_experiment(
         return mean_acc
 
 
-def test_distiller(
+def FMNIST_test(
     algo,
     load_dir,
     batch_size,

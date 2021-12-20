@@ -21,15 +21,18 @@ from .data import (
     ImageNet_loader,
 )
 
+from .distiller import (
+    create_distiller,
+)
+
 from .utils import (
     ECELoss,
     CustomKLDivLoss,
     SoftKLDivLoss,
     set_seed,
-    create_distiller
 )
 
 from .fmnist import (
-    distillation_experiment,
-    test_distiller,
+    FMNIST_experiment,
+    FMNIST_test,
 )

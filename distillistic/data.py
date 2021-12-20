@@ -39,7 +39,9 @@ def FMNIST_loader(data_path, batch_size, train, generator=None, workers=4, weigh
         train=train,
         download=True,
         transform=transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.2860,), (0.3530,))]
+            [transforms.Grayscale(num_output_channels=3),
+             transforms.ToTensor(),
+             transforms.Normalize((0.2860,), (0.3530,))]
         ),
     )
     if weighted_sampler:

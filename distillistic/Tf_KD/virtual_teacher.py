@@ -9,8 +9,8 @@ import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-# TODO
-# from distillistic.utils import ECELoss
+
+from distillistic.utils import ECELoss
 
 
 class VirtualTeacher:

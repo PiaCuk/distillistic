@@ -8,8 +8,8 @@ from copy import deepcopy
 import os
 from tqdm import tqdm
 import statistics as s
-# TODO
-# from distillistic.utils import ECELoss
+
+from distillistic.utils import ECELoss
 
 
 class BaseClass:
