@@ -18,7 +18,7 @@ from .Tf_KD import (
 
 from .data import (
     FMNIST_loader,
-    FMNIST_weighted_loader,
+    ImageNet_loader,
 )
 
 from .utils import (

@@ -3,7 +3,7 @@ import statistics as s
 
 import torch
 
-from distillistic.data import FMNIST_loader, FMNIST_weighted_loader
+from distillistic.data import FMNIST_loader
 from distillistic.utils import CustomKLDivLoss, SoftKLDivLoss, create_distiller, set_seed
 
 
@@ -47,16 +47,10 @@ def distillation_experiment(
     g = set_seed(seed) if seed is not None else None
 
     # Create DataLoaders
-    if use_weighted_dl:
-        train_loader = FMNIST_weighted_loader(
-            batch_size, train=True, generator=g, workers=15)
-        test_loader = FMNIST_weighted_loader(
-            batch_size, train=False, generator=g, workers=15)
-    else:
-        train_loader = FMNIST_loader(
-            batch_size, train=True, generator=g, workers=15)
-        test_loader = FMNIST_loader(
-            batch_size, train=False, generator=g, workers=15)
+    train_loader = FMNIST_loader("data/FashionMNIST",
+        batch_size, train=True, generator=g, workers=15, weighted_sampler=use_weighted_dl)
+    test_loader = FMNIST_loader("data/FashionMNIST",
+        batch_size, train=False, generator=g, workers=15, weighted_sampler=use_weighted_dl)
 
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
