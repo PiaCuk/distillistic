@@ -29,10 +29,7 @@ from .utils import (
     create_distiller
 )
 
-from .train import (
+from .fmnist import (
     distillation_experiment,
-)
-
-from .test import (
     test_distiller,
 )

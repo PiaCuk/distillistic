@@ -1,6 +1,7 @@
 import os
 
-from distillistic import distillation_experiment, test_distiller, CustomKLDivLoss, SoftKLDivLoss
+from distillistic import (CustomKLDivLoss, distillation_experiment,
+                          test_distiller)
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
