@@ -15,7 +15,7 @@ def _create_optim(params, lr, adam=True):
         return torch.optim.SGD(params, lr, momentum=0.9, weight_decay=0.0001)
 
 
-def create_distiller(algo, train_loader, test_loader, device, save_path, loss_fn=CustomKLDivLoss(), lr=0.01, distil_weight=0.5, temperature=10.0, num_students=2, pretrained=False, use_adam=True):
+def create_distiller(algo, train_loader, test_loader, device, save_path, num_classes, loss_fn=CustomKLDivLoss(), lr=0.01, distil_weight=0.5, temperature=10.0, num_students=2, pretrained=False, use_adam=True):
     """
     Create distillers for benchmarking.
 
@@ -24,6 +24,7 @@ def create_distiller(algo, train_loader, test_loader, device, save_path, loss_fn
     :param test_loader (torch.utils.data.DataLoader): Dataloader for validation/testing
     :param device (str): Device used for training
     :param save_path (str): Directory for storing logs and saving models
+    :param num_classes(int): Number of classes to predict
     :param loss_fn (torch.nn.Module): Loss Function used for distillation. Not used for VanillaKD (BaseClass), as it is implemented internally
     :param lr (float): Learning rate
     :param distil_weight (float): Between 0 and 1
@@ -32,7 +33,7 @@ def create_distiller(algo, train_loader, test_loader, device, save_path, loss_fn
     :param pretrained (bool): True to use pretrained torchvision models
     :param use_adam (bool): True to use Adam optim
     """
-    resnet_params = {"num_classes": 1000, "pretrained": pretrained}
+    resnet_params = {"num_classes": num_classes, "pretrained": pretrained}
 
     if algo == "dml" or algo == "dml_e":
         # Define models

@@ -29,7 +29,7 @@ def FMNIST_experiment(
     """
     Universal main function for my Knowledge Distillation experiments
 
-    :param algo (str): Name of the training algorithm to use. Either "dml", "dml_e", else VanillaKD
+    :param algo (str): Name of the training algorithm to use. Either "dml", "dml_e", "tfkd", else VanillaKD
     :param runs (int): Number of runs for each algorithm
     :param epochs (int): Number of epochs to train per run
     :param batch_size (int): Batch size for training
@@ -55,7 +55,7 @@ def FMNIST_experiment(
     train_loader = FMNIST_loader("data/FashionMNIST",
                                  batch_size, train=True, generator=g, workers=workers, weighted_sampler=use_weighted_dl)
     test_loader = FMNIST_loader("data/FashionMNIST",
-                                batch_size, train=False, generator=g, workers=workers, weighted_sampler=use_weighted_dl)
+                                batch_size, train=False, generator=g, workers=15, weighted_sampler=use_weighted_dl)
 
     best_acc_list = []
 
@@ -64,7 +64,7 @@ def FMNIST_experiment(
         run_path = os.path.join(save_path, algo + str(i).zfill(3))
 
         distiller = create_distiller(
-            algo, train_loader, test_loader, device, save_path=run_path,
+            algo, train_loader, test_loader, device, save_path=run_path, num_classes=10,
             loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature,
             num_students=num_students, pretrained=use_pretrained
         )
@@ -127,7 +127,7 @@ def FMNIST_test(
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     distiller = create_distiller(
-        algo, train_loader, test_loader, device, save_path=load_dir,
+        algo, train_loader, test_loader, device, save_path=load_dir, num_classes=10,
         loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature, num_students=1)
 
     if algo == "vanilla":
