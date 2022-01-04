@@ -213,7 +213,10 @@ class BaseClass:
             student_entropy = []
             student_calibration = []
 
-            for (data, label) in self.train_loader:
+            epoch_len = int(length_of_dataset / self.train_loader.batch_size)
+
+            for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
+            # for (data, label) in self.train_loader:
 
                 data = data.to(self.device)
                 label = label.to(self.device)

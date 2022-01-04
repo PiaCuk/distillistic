@@ -44,7 +44,7 @@ def ImageNet_experiment(
     :param num_students (int): Number of students in cohort. Used for DML
     :param use_pretrained (bool): Use pretrained teacher for VanillaKD
     :param use_scheduler (bool): True to decrease learning rate during training
-    :param use_weighted_dl (bool): True to use weighted DataLoader with oversampling
+    :param use_weighted_dl (bool): TODO True to use weighted DataLoader with oversampling
     :param schedule_distil_weight (bool): True to increase distil_weight from 0 to distil_weight over warm-up period
     :param seed: Random seed
     """
@@ -56,9 +56,9 @@ def ImageNet_experiment(
 
     # Create DataLoaders
     train_loader = ImageNet_loader(DATA_PATH,
-                                   batch_size, train=True, generator=g, workers=workers, weighted_sampler=use_weighted_dl)
+                                   batch_size, train=True, generator=g, workers=workers)
     test_loader = ImageNet_loader(DATA_PATH,
-                                  batch_size, train=False, generator=g, workers=15, weighted_sampler=use_weighted_dl)
+                                  batch_size, train=False, generator=g, workers=workers)
 
     best_acc_list = []
 

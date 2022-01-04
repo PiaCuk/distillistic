@@ -148,8 +148,8 @@ class DML:
                 else:
                     self.distil_weight = self.target_distil_weight
 
-            # for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
-            for (data, label) in self.train_loader:
+            for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
+            # for (data, label) in self.train_loader:
 
                 data = data.to(self.device)
                 label = label.to(self.device)

@@ -36,3 +36,7 @@ from .fmnist import (
     FMNIST_experiment,
     FMNIST_test,
 )
+
+from .imagenet import (
+    ImageNet_experiment
+)

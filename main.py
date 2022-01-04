@@ -1,7 +1,13 @@
 import os
 
-from distillistic import (CustomKLDivLoss, FMNIST_experiment,
-                          FMNIST_test)
+from distillistic import (CustomKLDivLoss, ImageNet_experiment)
+
+# TODO main for ImageNet experiment
+# First experiment to test the setup:
+# Vanilla KD with pretrained ResNet-50 Teacher and ResNet-18 student
+# Data augmentation as in torch example?
+# How many epochs?
+# 1 run to start
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -14,9 +20,9 @@ if __name__ == "__main__":
     for algo in ["dml", "dml_e", "tfkd", "vanilla"]:
         params = {
             "algo": algo,
-            "runs": 5,
-            "epochs": 100,
-            "batch_size": 1024,
+            "runs": 1,
+            "epochs": 1,
+            "batch_size": 4,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
             "lr": 0.005,
@@ -29,4 +35,4 @@ if __name__ == "__main__":
             "schedule_distil_weight": False,
             "seed": 42,
         }
-        FMNIST_experiment(**params)
+        ImageNet_experiment(**params)
