@@ -15,7 +15,20 @@ def _create_optim(params, lr, adam=True):
         return torch.optim.SGD(params, lr, momentum=0.9, weight_decay=0.0001)
 
 
-def create_distiller(algo, train_loader, test_loader, device, save_path, num_classes, loss_fn=CustomKLDivLoss(), lr=0.01, distil_weight=0.5, temperature=10.0, num_students=2, pretrained=False, use_adam=True):
+def create_distiller(
+    algo,
+    train_loader,
+    test_loader,
+    device,
+    save_path,
+    num_classes,
+    loss_fn=CustomKLDivLoss(),
+    lr=0.01,
+    distil_weight=0.5,
+    temperature=10.0,
+    num_students=2,
+    pretrained=False,
+    use_adam=True):
     """
     Create distillers for benchmarking.
 
@@ -33,26 +46,26 @@ def create_distiller(algo, train_loader, test_loader, device, save_path, num_cla
     :param pretrained (bool): True to use pretrained torchvision models
     :param use_adam (bool): True to use Adam optim
     """
-    resnet_params = {"num_classes": num_classes, "pretrained": pretrained}
+    student_params = {"num_classes": num_classes, "pretrained": pretrained, "last_layer_only": pretrained}
 
     if algo == "dml" or algo == "dml_e":
         # Define models
-        student_cohort = [resnet18(**resnet_params) for i in range(num_students)]
+        student_cohort = [resnet18(**student_params) for i in range(num_students)]
         student_optimizers = [_create_optim(
             student_cohort[i].parameters(), lr, adam=use_adam) for i in range(num_students)]
         # Define DML with logging to Tensorboard
         distiller = DML(student_cohort, train_loader, test_loader, student_optimizers, loss_fn=loss_fn, distil_weight=distil_weight,
                         log=True, logdir=save_path, device=device, use_ensemble=True if algo == "dml_e" else False)
     elif algo == "tfkd":
-        student = resnet18(**resnet_params)
+        student = resnet18(**student_params)
         student_optimizer = _create_optim(
             student.parameters(), lr, adam=use_adam)
         # Define TfKD with logging to Tensorboard
         distiller = VirtualTeacher(student, train_loader, test_loader, student_optimizer,
             temp=temperature, distil_weight=distil_weight, log=True, logdir=save_path, device=device)
     else:
-        teacher = resnet50(**resnet_params)
-        student = resnet18(**resnet_params)
+        teacher = resnet50(num_classes=num_classes, pretrained=True)
+        student = resnet18(**student_params)
 
         teacher_optimizer = _create_optim(
             teacher.parameters(), lr, adam=use_adam)
