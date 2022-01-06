@@ -13,8 +13,8 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    dataset_path = "/home/pia/Documents/ImageNet"
-    save_path = "/home/pia/Documents/distillistic/experiments/test"
+    dataset_path = "/data_b/9cuk/data/imagenet"
+    save_path = "/data_b/9cuk/distillistic/debug"
 
     # Use new universal main
     for algo in ["dml", "dml_e", "tfkd", "vanilla"]:
@@ -23,6 +23,7 @@ if __name__ == "__main__":
             "runs": 1,
             "epochs": 1,
             "batch_size": 4,
+            "data_path": dataset_path,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
             "lr": 0.005,
