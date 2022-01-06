@@ -5,3 +5,4 @@ tensorboard
 torch
 torchtext
 torchvision
+wandb

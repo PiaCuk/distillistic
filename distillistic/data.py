@@ -77,7 +77,8 @@ def ImageNet_loader(data_path, batch_size, train, generator=None, workers=4):
     if train:
         trans = transforms.Compose([
             transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
+            # transforms.RandomHorizontalFlip(),
+            transforms.RandAugment(),
             transforms.ToTensor(),
             normalize,
         ])

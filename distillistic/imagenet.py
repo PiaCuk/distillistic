@@ -2,13 +2,13 @@ import os
 import statistics as s
 
 import torch
+import wandb
 
 from distillistic.data import ImageNet_loader
 from distillistic.distiller import create_distiller
 from distillistic.utils import CustomKLDivLoss, set_seed
 
 # TODO make local variables
-DATA_PATH = "~/Documents/ImageNet"
 CLASSES = 1000
 
 
@@ -17,6 +17,7 @@ def ImageNet_experiment(
     runs,
     epochs,
     batch_size,
+    data_path,
     save_path,
     loss_fn=CustomKLDivLoss(),
     lr=0.005,
@@ -36,6 +37,7 @@ def ImageNet_experiment(
     :param runs (int): Number of runs for each algorithm
     :param epochs (int): Number of epochs to train per run
     :param batch_size (int): Batch size for training
+    :param data_path (str): Directory from which to load the data
     :param save_path (str): Directory for storing logs and saving models
     :param loss_fn (torch.nn.Module): Loss Function used for distillation. Only used for DML
     :param lr (float): Learning rate
@@ -52,12 +54,12 @@ def ImageNet_experiment(
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # Set seed for all libraries and return torch.Generator
     g = set_seed(seed) if seed is not None else None
-    workers = 15 if torch.cuda.is_available() else 4
+    workers = 12 if torch.cuda.is_available() else 4
 
     # Create DataLoaders
-    train_loader = ImageNet_loader(DATA_PATH,
+    train_loader = ImageNet_loader(data_path,
                                    batch_size, train=True, generator=g, workers=workers)
-    test_loader = ImageNet_loader(DATA_PATH,
+    test_loader = ImageNet_loader(data_path,
                                   batch_size, train=False, generator=g, workers=workers)
 
     best_acc_list = []
@@ -65,7 +67,11 @@ def ImageNet_experiment(
     for i in range(runs):
         print(f"Starting run {i}")
         run_path = os.path.join(save_path, algo + str(i).zfill(3))
-
+        if not os.path.isdir(run_path):
+            os.makedirs(run_path)
+        
+        wandb.init(dir=run_path, config=locals(), project="distillistic", entity="piacuk")
+        
         distiller = create_distiller(
             algo, train_loader, test_loader, device, save_path=run_path, num_classes=CLASSES,
             loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature,
@@ -88,6 +94,7 @@ def ImageNet_experiment(
 
         best_acc_list.append(acc)
         mean_acc = s.mean(best_acc_list)
+        wandb.log({"Experiment mean acc": mean_acc})
 
         print(f"Mean validation accuracy of best model: {mean_acc}")
         return mean_acc
