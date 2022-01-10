@@ -65,12 +65,14 @@ def ImageNet_experiment(
     best_acc_list = []
 
     for i in range(runs):
+        
+        # TODO update naming to save models of multiple runs in one folder. 
         print(f"Starting run {i}")
         run_path = os.path.join(save_path, algo + str(i).zfill(3))
         if not os.path.isdir(run_path):
             os.makedirs(run_path)
         
-        wandb.init(dir=run_path, config=locals(), project="distillistic", entity="piacuk")
+        wandb.init(dir=run_path, config=locals(), project="distillistic", entity="piacuk", reinit=True)
         
         distiller = create_distiller(
             algo, train_loader, test_loader, device, save_path=run_path, num_classes=CLASSES,

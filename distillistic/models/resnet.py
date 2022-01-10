@@ -8,7 +8,7 @@ class CustomResNet(nn.Module):
     See https://github.com/Stevellen/ResNet-Lightning/blob/master/resnet_classifier.py
     """
 
-    def __init__(self, num_classes, resnet_version, pretrained=False, last_layer_only=False) -> None:
+    def __init__(self, num_classes, resnet_version, pretrained=False, last_layer_only=False, keep_last_layer=False) -> None:
         super().__init__()
 
         self.__dict__.update(locals())
@@ -19,7 +19,7 @@ class CustomResNet(nn.Module):
         }
         # Using a pretrained ResNet backbone
         self.resnet_model = resnets[resnet_version](pretrained=pretrained)
-        if num_classes != 1000:
+        if not keep_last_layer:
             # Replace old FC layer with Identity so we can train our own
             linear_size = list(self.resnet_model.children())[-1].in_features
             # replace final layer for fine tuning
@@ -38,7 +38,8 @@ def resnet18(num_classes, pretrained=False, last_layer_only=False):
     return CustomResNet(num_classes=num_classes,
                         resnet_version=18,
                         pretrained=pretrained,
-                        last_layer_only=last_layer_only
+                        last_layer_only=last_layer_only,
+                        keep_last_layer=False
                         )
 
 
@@ -46,5 +47,6 @@ def resnet50(num_classes, pretrained=False, last_layer_only=False):
     return CustomResNet(num_classes=num_classes,
                         resnet_version=50,
                         pretrained=pretrained,
-                        last_layer_only=last_layer_only
+                        last_layer_only=last_layer_only,
+                        keep_last_layer=False
                         )

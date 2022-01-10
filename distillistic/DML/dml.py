@@ -58,7 +58,8 @@ class DML:
         # if self.log:
         #     self.writer = SummaryWriter(logdir)
         if self.logdir is not None:
-            print("The argument logdir is deprecated. All metadata is stored in run folder.")
+            print(
+                "The argument logdir is deprecated. All metadata is stored in run folder.")
 
         if device.type == "cpu":
             self.device = torch.device("cpu")
@@ -93,7 +94,7 @@ class DML:
     def train_students(
         self,
         epochs=20,
-        plot_losses=True,
+        plot_losses=False,
         save_model=True,
         save_model_path="./Experiments",
         use_scheduler=False,
@@ -106,8 +107,6 @@ class DML:
             student.train()
             if self.log:
                 wandb.watch(student, log_freq=100, idx=student_id)
-
-        loss_arr = []
 
         num_students = len(self.student_cohort)
         length_of_dataset = len(self.train_loader.dataset)
@@ -137,15 +136,13 @@ class DML:
             warm_up = int(2 * warm_up_pct * epochs)
 
         print("\nTraining students...")
+        if plot_losses:
+            print(
+                "The argument plot_losses is deprecated. All metrics are logged to W&B.\n")
+
         cohort_step = 0
 
         for ep in tqdm(range(epochs), position=0):
-            epoch_loss = 0.0
-            correct = 0
-            # cohort_ce_loss = [0 for s in range(num_students)]
-            # cohort_divergence = [0 for s in range(num_students)]
-            # cohort_entropy = [0 for s in range(num_students)]
-            # cohort_calibration = [0 for s in range(num_students)]
 
             if schedule_distil_weight:
                 if ep < warm_up:
@@ -186,22 +183,16 @@ class DML:
                                     student_outputs[i], student_outputs[j].detach())
 
                     ce_loss = F.cross_entropy(student_outputs[i], label)
-
-                    # Running average of both loss summands
-                    # cohort_ce_loss[i] += (1 / epoch_len) * ce_loss
-                    # cohort_divergence[i] += (1 / epoch_len) * student_loss
-                    
                     ece_loss = self.ece_loss(student_outputs[i], label).item()
-                    # cohort_calibration[i] += (1 / epoch_len) * ece_loss
 
-                    # Running average of output entropy
+                    # Compute entropy of output distribution
                     output_distribution = Categorical(
                         logits=student_outputs[i])
                     entropy = output_distribution.entropy().mean(dim=0)
-                    # cohort_entropy[i] += (1 / epoch_len) * entropy
 
                     preds = student_outputs[i].argmax(dim=1, keepdim=True)
-                    train_acc = preds.eq(label.view_as(preds)).sum().item() / len(preds)
+                    train_acc = preds.eq(label.view_as(
+                        preds)).sum().item() / len(preds)
 
                     train_loss = (1 - self.distil_weight) * ce_loss + \
                         self.distil_weight * student_loss
@@ -211,7 +202,7 @@ class DML:
                     self.student_optimizers[i].step()
                     if use_scheduler:
                         self.student_schedulers[i].step()
-                    
+
                     if self.log and batch_idx % log_freq == 0:
                         wandb.log({
                             f"student{i}/train_acc": train_acc,
@@ -224,24 +215,8 @@ class DML:
                             f"student{i}/distil_weight": self.distil_weight,
                             "epoch": ep,
                         }, step=cohort_step)
-                    
+
                 cohort_step += 1
-
-                # predictions = []
-                # correct_preds = []
-                # for i in range(num_students):
-                #     predictions.append(
-                #         student_outputs[i].argmax(dim=1, keepdim=True))
-                #     correct_preds.append(
-                #         predictions[i].eq(label.view_as(
-                #             predictions[i])).sum().item()
-                #     )
-
-                # correct += sum(correct_preds) / len(correct_preds)
-
-                # epoch_loss += avg_student_loss
-
-            # epoch_acc = correct / length_of_dataset
 
             for student_id, student in enumerate(self.student_cohort):
                 _, epoch_val_acc = self._evaluate_model(student, verbose=False)
@@ -251,50 +226,27 @@ class DML:
                     best_student_id = student_id
                     self.best_student_model_weights = deepcopy(
                         student.state_dict())
-                    
+
                 if self.log:
                     wandb.log({
                         f"student{student_id}/val_acc": epoch_val_acc,
                         "epoch": ep,
                     }, step=cohort_step)
-                    # self.writer.add_scalar(
-                    #     "Accuracy/Validation student"+str(student_id), epoch_val_acc, ep)
-                    # self.writer.add_scalar(
-                    #     "Loss/Cross-entropy student"+str(student_id), cohort_ce_loss[student_id], ep)
-                    # self.writer.add_scalar(
-                    #     "Loss/Divergence student"+str(student_id), cohort_divergence[student_id], ep)
-                    # self.writer.add_scalar(
-                    #     "Loss/Entropy student"+str(student_id), cohort_entropy[student_id], ep)
-                    # self.writer.add_scalar(
-                    #     "Loss/Calibration student"+str(student_id), cohort_calibration[student_id], ep)
-
-                    # if use_scheduler:
-                    #     self.writer.add_scalar(
-                    #         "Optimizer/lr student"+str(student_id), self.student_schedulers[student_id].get_last_lr()[0], ep)
 
             if self.log:
                 wandb.log({
                     "best_student/val_acc": best_acc,
                     "epoch": ep,
                 }, step=cohort_step)
-                # self.writer.add_scalar("Loss/Train average", epoch_loss, ep)
-                # self.writer.add_scalar("Accuracy/Train average", epoch_acc, ep)
-                # self.writer.add_scalar("Optimizer/Distillation weight", self.distil_weight, ep)
-                # self.writer.add_scalar("Accuracy/Best student", best_acc, ep)
-
-            loss_arr.append(epoch_loss)
 
         print(
             f"The best student model is the model number {best_student_id} in the cohort. Validation accuracy {best_acc}")
-        
+
         if save_model:
             if not os.path.isdir(save_model_path):
                 os.mkdir(save_model_path)
             torch.save(self.best_student_model_weights, os.path.join(
                 save_model_path, ("student" + str(best_student_id) + ".pt")))
-
-        if plot_losses:
-            plt.plot(loss_arr)
 
         return best_acc
 
@@ -341,7 +293,7 @@ class DML:
             if verbose:
                 print("-" * 80)
                 print(f"Evaluating student {i}")
-            
+
             model = deepcopy(student).to(self.device)
             out, acc = self._evaluate_model(model, verbose=verbose)
 
