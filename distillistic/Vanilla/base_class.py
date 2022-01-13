@@ -78,7 +78,9 @@ class BaseClass:
             print("Warning!!! Teacher is NONE.")
 
         self.student_model = student_model.to(self.device)
-        self.loss_fn = loss_fn.to(self.device)
+        
+        if loss_fn is not None:
+            self.loss_fn = loss_fn.to(self.device)
         self.ce_fn = nn.CrossEntropyLoss().to(self.device)
         self.ece_loss = ECELoss(n_bins=15).to(self.device)
 
@@ -272,7 +274,7 @@ class BaseClass:
                 })
 
         print(
-            f"The best student model validation accuracy {best_acc}")
+            f"\nThe best student model validation accuracy {best_acc}")
 
         if save_model:
             torch.save(self.best_student_model_weights,
@@ -302,7 +304,9 @@ class BaseClass:
             print(
                 "The argument plot_losses is deprecated. All metrics are logged to W&B.\n")
 
-        self._train_student(epochs, save_model, save_model_path, use_scheduler)
+        best_acc = self._train_student(epochs, save_model, save_model_path, use_scheduler)
+
+        return best_acc
 
     def calculate_kd_loss(self, y_pred_student, y_pred_teacher, y_true):
         """

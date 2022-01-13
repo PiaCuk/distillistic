@@ -241,7 +241,7 @@ class DML:
                 }, step=cohort_step)
 
         print(
-            f"The best student model is the model number {best_student_id} in the cohort. Validation accuracy {best_acc}")
+            f"\nThe best student model is the model number {best_student_id} in the cohort. Validation accuracy {best_acc}")
 
         if save_model:
             if not os.path.isdir(save_model_path):

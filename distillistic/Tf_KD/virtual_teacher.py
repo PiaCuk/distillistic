@@ -175,7 +175,7 @@ class VirtualTeacher:
                 })
 
         print(
-            f"The best student model validation accuracy {best_acc}")
+            f"\nThe best student model validation accuracy {best_acc}")
 
         if save_model:
             torch.save(self.best_student_model_weights,
