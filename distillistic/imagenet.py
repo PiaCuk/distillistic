@@ -78,8 +78,7 @@ def ImageNet_experiment(
             distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained
         )
 
-        params = {"epochs": epochs, "plot_losses": False, "save_model": True,
-                  "save_model_path": run_path, "use_scheduler": use_scheduler}
+        params = {"epochs": epochs, "save_model": True, "save_model_path": run_path, "use_scheduler": use_scheduler}
 
         if algo == "dml" or algo == "dml_e":
             # Run DML or DML_e
@@ -88,8 +87,8 @@ def ImageNet_experiment(
         elif algo == "tfkd":
             acc = distiller.train_student(**params, smooth_teacher=False)
         else:
-            if not use_pretrained:
-                distiller.train_teacher(**params)
+            if classes != 1000:
+                distiller.train_teacher(epochs=int(epochs / 2), save_model_path=run_path, use_scheduler=use_scheduler)
             acc = distiller.train_student(**params)
 
         best_acc_list.append(acc)
