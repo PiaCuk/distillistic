@@ -19,8 +19,9 @@ class CustomResNet(nn.Module):
         }
         # Using a pretrained ResNet backbone
         self.resnet_model = resnets[resnet_version](pretrained=pretrained)
-        if not keep_last_layer:
+        if (num_classes != 1000) or (not keep_last_layer):
             # Replace old FC layer with Identity so we can train our own
+            print(f"Creating new output layer with {num_classes} classes.")
             linear_size = list(self.resnet_model.children())[-1].in_features
             # replace final layer for fine tuning
             self.resnet_model.fc = nn.Linear(linear_size, num_classes)

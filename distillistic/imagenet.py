@@ -8,9 +8,6 @@ from distillistic.data import ImageNet_loader
 from distillistic.distiller import create_distiller
 from distillistic.utils import CustomKLDivLoss, set_seed
 
-# TODO make local variables
-CLASSES = 1000
-
 
 def ImageNet_experiment(
     algo,
@@ -29,6 +26,7 @@ def ImageNet_experiment(
     use_weighted_dl=False,
     schedule_distil_weight=False,
     seed=None,
+    classes=1000,
 ):
     """
     Universal main function for my Knowledge Distillation experiments
@@ -49,6 +47,7 @@ def ImageNet_experiment(
     :param use_weighted_dl (bool): TODO True to use weighted DataLoader with oversampling
     :param schedule_distil_weight (bool): True to increase distil_weight from 0 to distil_weight over warm-up period
     :param seed: Random seed
+    :param classes (int): number of classes in training data. Default for ImageNet is 1000
     """
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -75,7 +74,7 @@ def ImageNet_experiment(
         wandb.init(dir=run_path, config=locals(), project="distillistic", entity="piacuk", reinit=True)
         
         distiller = create_distiller(
-            algo, train_loader, test_loader, device, save_path=run_path, num_classes=CLASSES,
+            algo, train_loader, test_loader, device, save_path=run_path, num_classes=classes,
             loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature,
             num_students=num_students, pretrained=use_pretrained
         )
