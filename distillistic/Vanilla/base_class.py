@@ -1,13 +1,11 @@
+import os
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+import wandb
 from torch.distributions.categorical import Categorical
-
-import matplotlib.pyplot as plt
-from copy import deepcopy
-import os
 from tqdm import tqdm
-import statistics as s
 
 from distillistic.utils import ECELoss
 
@@ -27,7 +25,7 @@ class BaseClass:
     :param distil_weight (float): Weight paramter for distillation loss
     :param device (str): Device used for training; 'cpu' for cpu and 'cuda' for gpu
     :param log (bool): True if logging required
-    :param logdir (str): Directory for storing logs
+    :param logdir (str): DEPRECATED Directory for storing logs
     """
 
     def __init__(
@@ -41,9 +39,9 @@ class BaseClass:
         loss_fn=nn.KLDivLoss(),
         temp=20.0,
         distil_weight=0.5,
-        device=torch.device("cpu"),
+        device="cpu",
         log=False,
-        logdir="./Experiments",
+        logdir=None,
     ):
 
         self.train_loader = train_loader
@@ -55,8 +53,11 @@ class BaseClass:
         self.log = log
         self.logdir = logdir
 
+        if self.logdir is not None:
+            print(
+                "The argument logdir is deprecated. All metadata is stored in run folder.")
         if self.log:
-            self.writer = SummaryWriter(logdir)
+            self.log_freq = 100
 
         if device.type == "cpu":
             self.device = torch.device("cpu")
@@ -64,6 +65,7 @@ class BaseClass:
         elif device.type == "cuda":
             if torch.cuda.is_available():
                 self.device = torch.device("cuda")
+                print("Device is set to CUDA.")
             else:
                 print(
                     "Either an invalid device or CUDA is not available. Defaulting to CPU."
@@ -82,67 +84,78 @@ class BaseClass:
 
     def train_teacher(
         self,
-        epochs=20,
-        plot_losses=True,
+        epochs=10,
+        plot_losses=False,
         save_model=True,
-        save_model_path="./models/teacher.pt",
+        save_model_path="./experiments",
         use_scheduler=False
     ):
         """
         Function that will be training the teacher
 
         :param epochs (int): Number of epochs you want to train the teacher
-        :param plot_losses (bool): True if you want to plot the losses
+        :param plot_losses (bool): DEPRECATED True if you want to plot the losses
         :param save_model (bool): True if you want to save the teacher model
         :param save_model_path (str): Path where you want to store the teacher model
         :param use_scheduler (bool): True to use OneCycleLR during training
         """
+
         self.teacher_model.train()
-        loss_arr = []
-        length_of_dataset = len(self.train_loader.dataset)
+        if self.log:
+            wandb.watch(self.teacher_model, log_freq=self.log_freq, idx=0)
+
+        epoch_len = len(self.train_loader)
         best_acc = 0.0
-        self.best_teacher_model_weights = deepcopy(self.teacher_model.state_dict())
+        self.best_teacher_model_weights = deepcopy(
+            self.teacher_model.state_dict())
 
         if use_scheduler:
             optim_lr = self.optimizer_teacher.param_groups[0]["lr"]
             scheduler_teacher = torch.optim.lr_scheduler.OneCycleLR(
-                self.optimizer_teacher, max_lr=optim_lr, epochs=epochs, steps_per_epoch=len(self.train_loader), pct_start=0.1)
-
-        save_dir = os.path.dirname(save_model_path)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+                self.optimizer_teacher, max_lr=optim_lr, epochs=epochs, steps_per_epoch=epoch_len, pct_start=0.1)
 
         print("Training Teacher... ")
+        if plot_losses:
+            print(
+                "The argument plot_losses is deprecated. All metrics are logged to W&B.\n")
 
         for ep in tqdm(range(epochs), position=0):
-            epoch_loss = 0.0
-            epoch_calibration = 0.0
-            correct = 0
-            for (data, label) in self.train_loader:
+
+            for batch_idx, (data, label) in enumerate(tqdm(self.train_loader, total=epoch_len, position=1)):
                 data = data.to(self.device)
                 label = label.to(self.device)
-                out = self.teacher_model(data)
 
+                out = self.teacher_model(data)
                 if isinstance(out, tuple):
                     out = out[0]
 
-                epoch_calibration += (1 / length_of_dataset) * self.ece_loss(out, label).item()
-
-                pred = out.argmax(dim=1, keepdim=True)
-                correct += pred.eq(label.view_as(pred)).sum().item()
-
                 loss = self.ce_fn(out, label)
+
+                ece_loss = self.ece_loss(out, label).item()
+
+                out_dist = Categorical(logits=out)
+                entropy = out_dist.entropy().mean(dim=0)
+
+                preds = out.argmax(dim=1, keepdim=True)
+                train_acc = preds.eq(label.view_as(
+                    preds)).sum().item() / len(preds)
 
                 self.optimizer_teacher.zero_grad()
                 loss.backward()
                 self.optimizer_teacher.step()
-
                 if use_scheduler:
                     scheduler_teacher.step()
 
-                epoch_loss += loss
-
-            epoch_acc = correct / length_of_dataset
+                if self.log and batch_idx % self.log_freq == 0:
+                    wandb.log({
+                        "teacher/train_acc": train_acc,
+                        "teacher/train_loss": loss,
+                        "teacher/calibration_error": ece_loss,
+                        "teacher/entropy": entropy,
+                        "teacher/lr": scheduler_teacher.get_last_lr()[0],
+                        "teacher/distil_weight": self.distil_weight,
+                        "epoch": ep,
+                    })
 
             epoch_val_acc = self.evaluate(teacher=True, verbose=False)
 
@@ -153,105 +166,95 @@ class BaseClass:
                 )
 
             if self.log:
-                self.writer.add_scalar("Loss/Train teacher", epoch_loss, ep)
-                self.writer.add_scalar("Loss/Calibration teacher", epoch_calibration, ep)
-                self.writer.add_scalar("Accuracy/Train teacher", epoch_acc, ep)
-                self.writer.add_scalar("Accuracy/Validation teacher", epoch_val_acc, ep)
-                if use_scheduler:
-                    self.writer.add_scalar("Optimizer/lr teacher", scheduler_teacher.get_last_lr()[0], ep)
-
-            loss_arr.append(epoch_loss)
+                wandb.log({
+                    "teacher/val_acc": epoch_val_acc,
+                    "teacher/best_acc": best_acc,
+                    "epoch": ep,
+                })
 
             self.post_epoch_call(ep)
 
-        self.teacher_model.load_state_dict(self.best_teacher_model_weights)
         if save_model:
-            torch.save(self.teacher_model.state_dict(), os.path.join(save_model_path, "teacher.pt"))
-        if plot_losses:
-            plt.plot(loss_arr)
+            torch.save(self.best_teacher_model_weights,
+                       os.path.join(save_model_path, "teacher.pt"))
+
+        return best_acc
 
     def _train_student(
         self,
         epochs=10,
-        plot_losses=True,
         save_model=True,
-        save_model_path="./models/student.pt",
+        save_model_path="./experiments",
         use_scheduler=False
     ):
         """
         Function to train student model - for internal use only.
 
         :param epochs (int): Number of epochs you want to train the teacher
-        :param plot_losses (bool): True if you want to plot the losses
         :param save_model (bool): True if you want to save the student model
         :param save_model_path (str): Path where you want to save the student model
         :param use_scheduler (bool): True to use OneCycleLR during training
         """
         self.teacher_model.eval()
         self.student_model.train()
-        loss_arr = []
-        length_of_dataset = len(self.train_loader.dataset)
+        if self.log:
+            wandb.watch(self.student_model, log_freq=self.log_freq, idx=1)
+
+        epoch_len = len(self.train_loader)
         best_acc = 0.0
-        self.best_student_model_weights = deepcopy(self.student_model.state_dict())
+        self.best_student_model_weights = deepcopy(
+            self.student_model.state_dict())
 
         if use_scheduler:
             optim_lr = self.optimizer_student.param_groups[0]["lr"]
             scheduler_student = torch.optim.lr_scheduler.OneCycleLR(
-                self.optimizer_student, max_lr=optim_lr, epochs=epochs, steps_per_epoch=len(self.train_loader), pct_start=0.1)
-
-        save_dir = os.path.dirname(save_model_path)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+                self.optimizer_student, max_lr=optim_lr, epochs=epochs, steps_per_epoch=epoch_len, pct_start=0.1)
 
         print("Training Student...")
 
         for ep in tqdm(range(epochs), position=0):
-            epoch_loss = 0.0
-            correct = 0
-            student_ce_loss = []
-            student_divergence = []
-            student_entropy = []
-            student_calibration = []
 
-            epoch_len = int(length_of_dataset / self.train_loader.batch_size)
-
-            for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
-            # for (data, label) in self.train_loader:
+            for batch_idx, (data, label) in enumerate(tqdm(self.train_loader, total=epoch_len, position=1)):
 
                 data = data.to(self.device)
                 label = label.to(self.device)
 
                 student_out = self.student_model(data)
                 teacher_out = self.teacher_model(data)
-
-                loss = self.calculate_kd_loss(student_out, teacher_out, label)
-                
-                if isinstance(loss, tuple):
-                    loss, ce_loss, divergence = loss
-                    student_ce_loss.append(ce_loss.item())
-                    student_divergence.append(divergence.item())
-                
-                out_dist = Categorical(logits=student_out)
-                entropy = out_dist.entropy().mean(dim=0)
-                student_entropy.append(entropy.item())
-
                 if isinstance(student_out, tuple):
                     student_out = student_out[0]
 
-                student_calibration.append(self.ece_loss(student_out, label).item())
-                pred = student_out.argmax(dim=1, keepdim=True)
-                correct += pred.eq(label.view_as(pred)).sum().item()
+                loss = self.calculate_kd_loss(student_out, teacher_out, label)
+                if isinstance(loss, tuple):
+                    loss, ce_loss, divergence = loss
+
+                ece_loss = self.ece_loss(student_out, label).item()
+
+                out_dist = Categorical(logits=student_out)
+                entropy = out_dist.entropy().mean(dim=0)
+
+                preds = student_out.argmax(dim=1, keepdim=True)
+                train_acc = preds.eq(label.view_as(
+                    preds)).sum().item() / len(preds)
 
                 self.optimizer_student.zero_grad()
                 loss.backward()
                 self.optimizer_student.step()
-
                 if use_scheduler:
                     scheduler_student.step()
 
-                epoch_loss += loss.item()
-
-            epoch_acc = correct / length_of_dataset
+                if self.log and batch_idx % self.log_freq == 0:
+                    wandb.log({
+                        "student/train_acc": train_acc,
+                        "student/train_loss": loss,
+                        "student/cross-entropy": ce_loss,
+                        "student/divergence": divergence,
+                        "student/calibration_error": ece_loss,
+                        "student/entropy": entropy,
+                        "student/lr": scheduler_student.get_last_lr()[0],
+                        "student/distil_weight": self.distil_weight,
+                        "epoch": ep,
+                    })
 
             epoch_val_acc = self.evaluate(teacher=False, verbose=False)
 
@@ -262,17 +265,11 @@ class BaseClass:
                 )
 
             if self.log:
-                self.writer.add_scalar("Loss/Train student", epoch_loss, ep)
-                self.writer.add_scalar("Accuracy/Train student", epoch_acc, ep)
-                self.writer.add_scalar("Accuracy/Validation student", epoch_val_acc, ep)
-                self.writer.add_scalar("Loss/Cross-entropy student", s.mean(student_ce_loss), ep)
-                self.writer.add_scalar("Loss/Divergence student", s.mean(student_divergence), ep)
-                self.writer.add_scalar("Loss/Entropy student", s.mean(student_entropy), ep)
-                self.writer.add_scalar("Loss/Calibration student", s.mean(student_calibration), ep)
-                if use_scheduler:
-                    self.writer.add_scalar("Optimizer/lr student", scheduler_student.get_last_lr()[0], ep)
-
-            loss_arr.append(epoch_loss)
+                wandb.log({
+                    "student/val_acc": epoch_val_acc,
+                    "student/best_acc": best_acc,
+                    "epoch": ep,
+                })
 
         print(
             f"The best student model validation accuracy {best_acc}")
@@ -281,29 +278,31 @@ class BaseClass:
             torch.save(self.best_student_model_weights,
                        os.path.join(save_model_path, "student.pt"))
 
-        if plot_losses:
-            plt.plot(loss_arr)
-
         return best_acc
 
     def train_student(
         self,
         epochs=10,
-        plot_losses=True,
+        plot_losses=False,
         save_model=True,
-        save_model_path="./models/student.pt",
+        save_model_path="./experiments",
         use_scheduler=False
     ):
         """
         Function that will be training the student
 
         :param epochs (int): Number of epochs you want to train the teacher
-        :param plot_losses (bool): True if you want to plot the losses
+        :param plot_losses (bool): DEPRECATED True if you want to plot the losses
         :param save_model (bool): True if you want to save the student model
         :param save_model_path (str): Path where you want to save the student model
         :param use_scheduler (bool): True to use OneCycleLR during training
         """
-        self._train_student(epochs, plot_losses, save_model, save_model_path, use_scheduler)
+
+        if plot_losses:
+            print(
+                "The argument plot_losses is deprecated. All metrics are logged to W&B.\n")
+
+        self._train_student(epochs, save_model, save_model_path, use_scheduler)
 
     def calculate_kd_loss(self, y_pred_student, y_pred_teacher, y_true):
         """
@@ -347,7 +346,7 @@ class BaseClass:
         if verbose:
             print("-" * 80)
             print("Validation Accuracy: {}".format(accuracy))
-        
+
         return outputs, accuracy
 
     def evaluate(self, teacher=False, verbose=True):
@@ -368,8 +367,10 @@ class BaseClass:
         """
         Get the number of parameters for the teacher and the student network
         """
-        teacher_params = sum(p.numel() for p in self.teacher_model.parameters())
-        student_params = sum(p.numel() for p in self.student_model.parameters())
+        teacher_params = sum(p.numel()
+                             for p in self.teacher_model.parameters())
+        student_params = sum(p.numel()
+                             for p in self.student_model.parameters())
 
         print("-" * 80)
         print("Total parameters for the teacher network are: {}".format(teacher_params))

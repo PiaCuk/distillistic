@@ -74,9 +74,8 @@ def ImageNet_experiment(
         wandb.init(dir=run_path, config=locals(), project="distillistic", entity="piacuk", reinit=True)
         
         distiller = create_distiller(
-            algo, train_loader, test_loader, device, save_path=run_path, num_classes=classes,
-            loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature,
-            num_students=num_students, pretrained=use_pretrained
+            algo, train_loader, test_loader, device, num_classes=classes, loss_fn=loss_fn, lr=lr, 
+            distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained
         )
 
         params = {"epochs": epochs, "plot_losses": False, "save_model": True,

@@ -1,4 +1,3 @@
-import torch.nn as nn
 import torch.nn.functional as F
 
 from .base_class import BaseClass
@@ -31,13 +30,16 @@ class VanillaKD(BaseClass):
         val_loader,
         optimizer_teacher,
         optimizer_student,
-        loss_fn=nn.MSELoss(),
+        loss_fn=None,
         temp=20.0,
         distil_weight=0.5,
         device="cpu",
         log=False,
-        logdir="./Experiments",
+        logdir="./experiments",
     ):
+        if loss_fn is not None:
+            print("The argument loss_fn is deprecated. The loss is calculated internally.")
+
         super(VanillaKD, self).__init__(
             teacher_model,
             student_model,

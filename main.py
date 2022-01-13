@@ -13,11 +13,11 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    dataset_path = "/data_b/9cuk/data/imagenet"
-    save_path = "/data_b/9cuk/distillistic/debug"
+    dataset_path = "../data/imagecat"
+    save_path = "./experiments/imagecat/test"
 
     # Use new universal main
-    for algo in ["dml", "dml_e", "tfkd", "vanilla"]:
+    for algo in ["tfkd"]: # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
@@ -30,10 +30,11 @@ if __name__ == "__main__":
             "distil_weight": 0.5,
             "temperature": 10.0 if algo != "tfkd" else 1.0,
             "num_students": 3,
-            "use_pretrained": True,
+            "use_pretrained": False,
             "use_scheduler": True,
             "use_weighted_dl": False,
             "schedule_distil_weight": False,
             "seed": 42,
+            "classes": 1000,
         }
         ImageNet_experiment(**params)

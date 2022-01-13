@@ -20,7 +20,6 @@ def create_distiller(
     train_loader,
     test_loader,
     device,
-    save_path,
     num_classes,
     loss_fn=CustomKLDivLoss(),
     lr=0.01,
@@ -36,7 +35,6 @@ def create_distiller(
     :param train_loader (torch.utils.data.DataLoader): Dataloader for training
     :param test_loader (torch.utils.data.DataLoader): Dataloader for validation/testing
     :param device (str): Device used for training
-    :param save_path (str): Directory for storing logs and saving models
     :param num_classes(int): Number of classes to predict
     :param loss_fn (torch.nn.Module): Loss Function used for distillation. Not used for VanillaKD (BaseClass), as it is implemented internally
     :param lr (float): Learning rate
@@ -55,14 +53,14 @@ def create_distiller(
             student_cohort[i].parameters(), lr, adam=use_adam) for i in range(num_students)]
         # Define DML with logging to Tensorboard
         distiller = DML(student_cohort, train_loader, test_loader, student_optimizers, loss_fn=loss_fn, distil_weight=distil_weight,
-                        log=True, logdir=save_path, device=device, use_ensemble=True if algo == "dml_e" else False)
+                        log=True, device=device, use_ensemble=True if algo == "dml_e" else False)
     elif algo == "tfkd":
         student = resnet18(**student_params)
         student_optimizer = _create_optim(
             student.parameters(), lr, adam=use_adam)
         # Define TfKD with logging to Tensorboard
         distiller = VirtualTeacher(student, train_loader, test_loader, student_optimizer,
-            temp=temperature, distil_weight=distil_weight, log=True, logdir=save_path, device=device)
+            temp=temperature, distil_weight=distil_weight, log=True, device=device)
     else:
         teacher = resnet50(num_classes=num_classes, pretrained=True)
         student = resnet18(**student_params)
@@ -73,6 +71,6 @@ def create_distiller(
             student.parameters(), lr, adam=use_adam)
         # Define KD with logging to Tensorboard
         distiller = VanillaKD(teacher, student, train_loader, test_loader, teacher_optimizer, student_optimizer,
-                              temp=temperature, distil_weight=distil_weight, log=True, logdir=save_path, device=device)
+                              temp=temperature, distil_weight=distil_weight, log=True, device=device)
 
     return distiller

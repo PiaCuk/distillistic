@@ -1,14 +1,12 @@
 import os
 from copy import deepcopy
 
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions.categorical import Categorical
-# from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 import wandb
+from torch.distributions.categorical import Categorical
+from tqdm import tqdm
 
 from distillistic.utils import ECELoss
 
@@ -55,8 +53,6 @@ class DML:
         if self.use_ensemble:
             print("Using ensemble target for divergence loss.")
 
-        # if self.log:
-        #     self.writer = SummaryWriter(logdir)
         if self.logdir is not None:
             print(
                 "The argument logdir is deprecated. All metadata is stored in run folder.")
@@ -93,10 +89,10 @@ class DML:
 
     def train_students(
         self,
-        epochs=20,
+        epochs=10,
         plot_losses=False,
         save_model=True,
-        save_model_path="./Experiments",
+        save_model_path="./experiments",
         use_scheduler=False,
         schedule_distil_weight=False,
     ):
@@ -106,10 +102,10 @@ class DML:
         for student_id, student in enumerate(self.student_cohort):
             student.train()
             if self.log:
-                wandb.watch(student, log_freq=100, idx=student_id)
+                wandb.watch(student, log_freq=log_freq, idx=student_id)
 
         num_students = len(self.student_cohort)
-        length_of_dataset = len(self.train_loader.dataset)
+        # length_of_dataset = len(self.train_loader.dataset)
         epoch_len = len(self.train_loader)
 
         best_acc = 0.0
@@ -163,7 +159,7 @@ class DML:
                 # Forward passes to compute logits
                 student_outputs = [n(data) for n in self.student_cohort]
 
-                avg_student_loss = 0
+                cohort_acc = 0
 
                 for i in range(num_students):
                     student_loss = 0
@@ -186,17 +182,17 @@ class DML:
                     ece_loss = self.ece_loss(student_outputs[i], label).item()
 
                     # Compute entropy of output distribution
-                    output_distribution = Categorical(
+                    out_dist = Categorical(
                         logits=student_outputs[i])
-                    entropy = output_distribution.entropy().mean(dim=0)
+                    entropy = out_dist.entropy().mean(dim=0)
 
                     preds = student_outputs[i].argmax(dim=1, keepdim=True)
                     train_acc = preds.eq(label.view_as(
                         preds)).sum().item() / len(preds)
+                    cohort_acc += (1 / num_students) * train_acc
 
                     train_loss = (1 - self.distil_weight) * ce_loss + \
                         self.distil_weight * student_loss
-                    avg_student_loss += (1 / num_students) * train_loss
 
                     train_loss.backward()
                     self.student_optimizers[i].step()
@@ -218,8 +214,11 @@ class DML:
 
                 cohort_step += 1
 
+            cohort_val_acc = 0
+            
             for student_id, student in enumerate(self.student_cohort):
                 _, epoch_val_acc = self._evaluate_model(student, verbose=False)
+                cohort_val_acc += (1 / num_students) * epoch_val_acc
 
                 if epoch_val_acc > best_acc:
                     best_acc = epoch_val_acc
@@ -236,6 +235,8 @@ class DML:
             if self.log:
                 wandb.log({
                     "best_student/val_acc": best_acc,
+                    "cohort_train_acc": cohort_acc,
+                    "cohort_val_acc": cohort_val_acc,
                     "epoch": ep,
                 }, step=cohort_step)
 

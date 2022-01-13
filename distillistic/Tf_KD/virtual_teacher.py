@@ -1,13 +1,10 @@
 import os
-import statistics as s
 from copy import deepcopy
 
-import matplotlib.pyplot as plt
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+import wandb
 from torch.distributions.categorical import Categorical
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from distillistic.utils import ECELoss
@@ -29,7 +26,7 @@ class VirtualTeacher:
     :param distil_weight (float): Weight paramter for distillation loss
     :param device (str): Device used for training; 'cpu' for cpu and 'cuda' for gpu
     :param log (bool): True if logging required
-    :param logdir (str): Directory for storing logs
+    :param logdir (str): DEPRECATED Directory for storing logs
     """
 
     def __init__(
@@ -43,7 +40,7 @@ class VirtualTeacher:
         distil_weight=0.5,
         device="cpu",
         log=False,
-        logdir="./Experiments",
+        logdir=None,
     ):
 
         self.student_model = student_model
@@ -56,8 +53,9 @@ class VirtualTeacher:
         self.log = log
         self.logdir = logdir
 
-        if self.log:
-            self.writer = SummaryWriter(logdir)
+        if self.logdir is not None:
+            print(
+                "The argument logdir is deprecated. All metadata is stored in run folder.")
 
         if device.type == "cpu":
             self.device = torch.device("cpu")
@@ -78,9 +76,9 @@ class VirtualTeacher:
     def train_student(
         self,
         epochs=10,
-        plot_losses=True,
+        plot_losses=False,
         save_model=True,
-        save_model_path="./models/student.pt",
+        save_model_path="./experiments",
         use_scheduler=False,
         smooth_teacher=True,
     ):
@@ -88,16 +86,21 @@ class VirtualTeacher:
         Function that will be training the student
 
         :param epochs (int): Number of epochs you want to train the teacher
-        :param plot_losses (bool): True if you want to plot the losses
+        :param plot_losses (bool): DEPRECATED True if you want to plot the losses
         :param save_model (bool): True if you want to save the student model
         :param save_model_pth (str): Path where you want to save the student model
         :param use_scheduler (bool): True to use OneCycleLR during training
         :param smooth_teacher (bool): True to apply temperature smoothing and Softmax to virtual teacher
         """
 
+        log_freq = 100
+
         self.student_model.train()
-        loss_arr = []
-        length_of_dataset = len(self.train_loader.dataset)
+        if self.log:
+            wandb.watch(self.student_model, log_freq=log_freq)
+
+        # length_of_dataset = len(self.train_loader.dataset)
+        epoch_len = len(self.train_loader)
         best_acc = 0.0
         self.best_student_model_weights = deepcopy(
             self.student_model.state_dict())
@@ -105,63 +108,56 @@ class VirtualTeacher:
         if use_scheduler:
             optim_lr = self.optimizer_student.param_groups[0]["lr"]
             scheduler_student = torch.optim.lr_scheduler.OneCycleLR(
-                self.optimizer_student, max_lr=optim_lr, epochs=epochs, steps_per_epoch=len(self.train_loader), pct_start=0.1)
-
-        save_dir = os.path.dirname(save_model_path)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+                self.optimizer_student, max_lr=optim_lr, epochs=epochs, steps_per_epoch=epoch_len, pct_start=0.1)
 
         print("\nTraining student...")
+        if plot_losses:
+            print(
+                "The argument plot_losses is deprecated. All metrics are logged to W&B.\n")
 
         for ep in tqdm(range(epochs), position=0):
-            epoch_loss = 0.0
-            correct = 0
-            student_ce_loss = []
-            student_divergence = []
-            student_entropy = []
-            student_calibration = []
 
-            epoch_len = int(length_of_dataset / self.train_loader.batch_size)
-
-            for (data, label) in tqdm(self.train_loader, total=epoch_len, position=1):
-            # for (data, label) in self.train_loader:
+            for batch_idx, (data, label) in enumerate(tqdm(self.train_loader, total=epoch_len, position=1)):
 
                 data = data.to(self.device)
                 label = label.to(self.device)
 
                 student_out = self.student_model(data)
-
-                loss = self.calculate_kd_loss(
-                    student_out, label, smooth_teacher=smooth_teacher)
-
-                if isinstance(loss, tuple):
-                    loss, ce_loss, divergence = loss
-                    student_ce_loss.append(ce_loss.item())
-                    student_divergence.append(divergence.item())
-
                 if isinstance(student_out, tuple):
                     student_out = student_out[0]
 
-                student_calibration.append(
-                    self.ece_loss(student_out, label).item())
+                loss = self.calculate_kd_loss(
+                    student_out, label, smooth_teacher=smooth_teacher)
+                if isinstance(loss, tuple):
+                    loss, ce_loss, divergence = loss
+
+                ece_loss = self.ece_loss(student_out, label).item()
 
                 out_dist = Categorical(logits=student_out)
                 entropy = out_dist.entropy().mean(dim=0)
-                student_entropy.append(entropy.item())
 
-                pred = student_out.argmax(dim=1, keepdim=True)
-                correct += pred.eq(label.view_as(pred)).sum().item()
+                preds = student_out.argmax(dim=1, keepdim=True)
+                train_acc = preds.eq(label.view_as(
+                    preds)).sum().item() / len(preds)
 
                 self.optimizer_student.zero_grad()
                 loss.backward()
                 self.optimizer_student.step()
-
                 if use_scheduler:
                     scheduler_student.step()
 
-                epoch_loss += loss
-
-            epoch_acc = correct / length_of_dataset
+                if self.log and batch_idx % log_freq == 0:
+                    wandb.log({
+                        "student/train_acc": train_acc,
+                        "student/train_loss": loss,
+                        "student/cross-entropy": ce_loss,
+                        "student/divergence": divergence,
+                        "student/calibration_error": ece_loss,
+                        "student/entropy": entropy,
+                        "student/lr": scheduler_student.get_last_lr()[0],
+                        "student/distil_weight": self.distil_weight,
+                        "epoch": ep,
+                    })
 
             epoch_val_acc = self.evaluate(verbose=False)
 
@@ -172,18 +168,11 @@ class VirtualTeacher:
                 )
 
             if self.log:
-                self.writer.add_scalar("Loss/Train student", epoch_loss, ep)
-                self.writer.add_scalar("Accuracy/Train student", epoch_acc, ep)
-                self.writer.add_scalar("Accuracy/Validation student", epoch_val_acc, ep)
-                self.writer.add_scalar("Loss/Cross-entropy student", s.mean(student_ce_loss), ep)
-                self.writer.add_scalar("Loss/Divergence student", s.mean(student_divergence), ep)
-                self.writer.add_scalar("Loss/Entropy student", s.mean(student_entropy), ep)
-                self.writer.add_scalar("Loss/Calibration student", s.mean(student_calibration), ep)
-                self.writer.add_scalar("Accuracy/Best student", best_acc, ep)
-                if use_scheduler:
-                    self.writer.add_scalar("Optimizer/lr student", scheduler_student.get_last_lr()[0], ep)
-
-            loss_arr.append(epoch_loss)
+                wandb.log({
+                    "student/val_acc": epoch_val_acc,
+                    "student/best_acc": best_acc,
+                    "epoch": ep,
+                })
 
         print(
             f"The best student model validation accuracy {best_acc}")
@@ -191,9 +180,6 @@ class VirtualTeacher:
         if save_model:
             torch.save(self.best_student_model_weights,
                        os.path.join(save_model_path, "student.pt"))
-
-        if plot_losses:
-            plt.plot(loss_arr)
 
         return best_acc
 
