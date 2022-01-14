@@ -1,9 +1,11 @@
 import random
+from typing import List
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
+from torch.distributions.categorical import Categorical
 
 
 class ECELoss(torch.nn.Module):
@@ -79,6 +81,65 @@ class SoftKLDivLoss(torch.nn.Module):
         soft_target = torch.softmax(target / self.temp, dim=-1)
         # Multiply with squared temp so that KLD loss keeps proportion to CE loss
         return (self.temp ** 2) * F.kl_div(soft_input, soft_target, reduction=self.reduction, log_target=self.log_target)
+
+
+class ClassifierMetrics(torch.nn.Module):
+    def __init__(self) -> None:
+        super(ClassifierMetrics, self).__init__()
+        self.ece_loss = ECELoss(n_bins=15)
+
+    def forward(self, pred: Tensor, target: Tensor, topk=(1,)) -> List[torch.FloatTensor]:
+        """
+        Returns a list with top k accuracy, ECE loss, and entropy of the predicted distribution
+        """
+        metrics_list = accuracy(pred, target, topk) # List with top k accuracies
+        metrics_list.append(self.ece_loss(pred, target)) # ECE loss
+
+        out_dist = Categorical(logits=pred)
+        metrics_list.append(out_dist.entropy().mean(dim=0)) # distribution entropy
+
+        return metrics_list
+
+
+def accuracy(output: Tensor, target: Tensor, topk=(1,)) -> List[torch.FloatTensor]:
+    """
+    Computes the accuracy over the k top predictions for the specified values of k
+    In top-5 accuracy you give yourself credit for having the right answer
+    if the right answer appears in your top five guesses.
+
+    ref:
+    - https://pytorch.org/docs/stable/generated/torch.topk.html
+    - https://discuss.pytorch.org/t/imagenet-example-accuracy-calculation/7840
+    - https://gist.github.com/weiaicunzai/2a5ae6eac6712c70bde0630f3e76b77b
+    - https://discuss.pytorch.org/t/top-k-error-calculation/48815/2
+    - https://stackoverflow.com/questions/59474987/how-to-get-top-k-accuracy-in-semantic-segmentation-using-pytorch
+
+    :param output: prediction of the model, e.g. scores, logits, raw y_pred before normalization or getting classes
+    :param target: ground truth
+    :param topk: tuple of topk's to compute, e.g. (1, 2, 5) computes top 1, top 2 and top 5
+    :return: list of topk accuracy [top1st, top2nd, ...] depending on your topk input
+    """
+
+    with torch.no_grad():
+        maxk = max(topk)
+        batch_size = target.size(0)
+
+        _, y_pred = output.topk(k=maxk, dim=1)
+        y_pred = y_pred.t()
+
+        target_reshaped = target.view(1, -1).expand_as(y_pred)
+        correct = (y_pred == target_reshaped)
+        # original: correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+        list_topk_accs = []
+        for k in topk:
+            ind_which_topk_matched_truth = correct[:k]
+            flattened_indicator_which_topk_matched_truth = ind_which_topk_matched_truth.reshape(-1).float()
+            tot_correct_topk = flattened_indicator_which_topk_matched_truth.float().sum(dim=0, keepdim=True)
+            topk_acc = tot_correct_topk / batch_size
+            list_topk_accs.append(topk_acc)
+        
+        return list_topk_accs
 
 
 def set_seed(seed=42, cuda_deterministic=False) -> torch.Generator:

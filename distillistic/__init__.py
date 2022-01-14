@@ -29,6 +29,8 @@ from .utils import (
     ECELoss,
     CustomKLDivLoss,
     SoftKLDivLoss,
+    ClassifierMetrics,
+    accuracy,
     set_seed,
 )
 

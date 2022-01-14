@@ -2,26 +2,29 @@ import os
 
 from distillistic import (CustomKLDivLoss, ImageNet_experiment)
 
-# TODO main for ImageNet experiment
-# First experiment to test the setup:
-# Vanilla KD with pretrained ResNet-50 Teacher and ResNet-18 student
-# Data augmentation as in torch example?
-# How many epochs?
-# 1 run to start
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-    dataset_path = "../data/imagecat"
-    save_path = "./experiments/imagecat/session1"
+    dataset = "imagecat"
+    
+    if dataset == "imagenet":
+        classes = 1000
+    elif dataset == "imagecat":
+        classes = 10
+    else:
+        classes = None
+
+    dataset_path = f"../data/{dataset}"
+    save_path = f"./experiments/{dataset}/debug"
 
     # Use new universal main
-    for algo in ["tfkd", "vanilla"]: # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["tfkd"]: # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 100,
+            "epochs": 5,
             "batch_size": 64,
             "data_path": dataset_path,
             "save_path": save_path,
@@ -35,6 +38,6 @@ if __name__ == "__main__":
             "use_weighted_dl": False,
             "schedule_distil_weight": False,
             "seed": 42,
-            "classes": 10,
+            "classes": classes,
         }
         ImageNet_experiment(**params)

@@ -4,10 +4,9 @@ from copy import deepcopy
 import torch
 import torch.nn.functional as F
 import wandb
-from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-from distillistic.utils import ECELoss
+from distillistic.utils import ClassifierMetrics, accuracy
 
 
 class VirtualTeacher:
@@ -71,7 +70,7 @@ class VirtualTeacher:
             self.device = torch.device("cpu")
 
         self.student_model = student_model.to(self.device)
-        self.ece_loss = ECELoss(n_bins=15).to(self.device)
+        self.metrics = ClassifierMetrics().to(self.device)
 
     def train_student(
         self,
@@ -93,14 +92,13 @@ class VirtualTeacher:
         :param smooth_teacher (bool): True to apply temperature smoothing and Softmax to virtual teacher
         """
 
-        log_freq = 100
+        epoch_len = len(self.train_loader)
+        log_freq = min(100, int(epoch_len / 10))
 
         self.student_model.train()
         if self.log:
             wandb.watch(self.student_model, log_freq=log_freq)
 
-        # length_of_dataset = len(self.train_loader.dataset)
-        epoch_len = len(self.train_loader)
         best_acc = 0.0
         self.best_student_model_weights = deepcopy(
             self.student_model.state_dict())
@@ -131,14 +129,7 @@ class VirtualTeacher:
                 if isinstance(loss, tuple):
                     loss, ce_loss, divergence = loss
 
-                ece_loss = self.ece_loss(student_out, label).item()
-
-                out_dist = Categorical(logits=student_out)
-                entropy = out_dist.entropy().mean(dim=0)
-
-                preds = student_out.argmax(dim=1, keepdim=True)
-                train_acc = preds.eq(label.view_as(
-                    preds)).sum().item() / len(preds)
+                top1, top5, ece_loss, entropy = self.metrics(student_out, label, topk=(1, 5))
 
                 self.optimizer_student.zero_grad()
                 loss.backward()
@@ -148,7 +139,8 @@ class VirtualTeacher:
 
                 if self.log and batch_idx % log_freq == 0:
                     wandb.log({
-                        "student/train_acc": train_acc,
+                        "student/train_top1_acc": top1,
+                        "student/train_top5_acc": top5,
                         "student/train_loss": loss,
                         "student/cross-entropy": ce_loss,
                         "student/divergence": divergence,
@@ -159,17 +151,18 @@ class VirtualTeacher:
                         "epoch": ep,
                     })
 
-            epoch_val_acc = self.evaluate(verbose=False)
+            top1_val_acc, top5_val_acc = self.evaluate(verbose=False)
 
-            if epoch_val_acc > best_acc:
-                best_acc = epoch_val_acc
+            if top1_val_acc > best_acc:
+                best_acc = top1_val_acc.item()
                 self.best_student_model_weights = deepcopy(
                     self.student_model.state_dict()
                 )
 
             if self.log:
                 wandb.log({
-                    "student/val_acc": epoch_val_acc,
+                    "student/val_top1_acc": top1_val_acc,
+                    "student/val_top5_acc": top5_val_acc,
                     "student/best_acc": best_acc,
                     "epoch": ep,
                 })
@@ -219,8 +212,8 @@ class VirtualTeacher:
 
         model = deepcopy(self.student_model)
         model.eval()
-        length_of_dataset = len(self.val_loader.dataset)
-        correct = 0
+        top1_acc = 0
+        top5_acc = 0
 
         with torch.no_grad():
             for data, target in self.val_loader:
@@ -231,16 +224,20 @@ class VirtualTeacher:
                 if isinstance(output, tuple):
                     output = output[0]
 
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
+                # pred = output.argmax(dim=1, keepdim=True)
+                # correct += pred.eq(target.view_as(pred)).sum().item()
+                top1, top5 = accuracy(output, target, topk=(1, 5))
+                top1_acc += top1
+                top5_acc += top5
 
-        accuracy = correct / length_of_dataset
+        top1_acc /= len(self.val_loader)
+        top5_acc /= len(self.val_loader)
 
         if verbose:
             print("-" * 80)
-            print(f"Accuracy: {accuracy}")
+            print(f"Accuracy: {top1_acc}")
 
-        return accuracy
+        return top1_acc, top5_acc
 
     def get_parameters(self):
         """
