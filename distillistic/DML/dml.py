@@ -5,10 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
-from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-from distillistic.utils import ECELoss
+from distillistic.utils import ClassifierMetrics, accuracy
 
 
 class DML:
@@ -72,7 +71,7 @@ class DML:
 
         for student in self.student_cohort:
             student.to(self.device)
-        self.ece_loss = ECELoss(n_bins=15).to(self.device)
+        self.metrics = ClassifierMetrics().to(self.device)
 
     def ensemble_target(self, logits_list, j):
         # Calculate ensemble target given a list of logits, omitting the j'th element
@@ -97,7 +96,8 @@ class DML:
         schedule_distil_weight=False,
     ):
         warm_up_pct = 0.1
-        log_freq = 100
+        epoch_len = len(self.train_loader)
+        log_freq = min(100, int(epoch_len / 10))
 
         for student_id, student in enumerate(self.student_cohort):
             student.train()
@@ -105,8 +105,6 @@ class DML:
                 wandb.watch(student, log_freq=log_freq, idx=student_id)
 
         num_students = len(self.student_cohort)
-        # length_of_dataset = len(self.train_loader.dataset)
-        epoch_len = len(self.train_loader)
 
         best_acc = 0.0
         self.best_student_model_weights = deepcopy(
@@ -179,17 +177,9 @@ class DML:
                                     student_outputs[i], student_outputs[j].detach())
 
                     ce_loss = F.cross_entropy(student_outputs[i], label)
-                    ece_loss = self.ece_loss(student_outputs[i], label).item()
 
-                    # Compute entropy of output distribution
-                    out_dist = Categorical(
-                        logits=student_outputs[i])
-                    entropy = out_dist.entropy().mean(dim=0)
-
-                    preds = student_outputs[i].argmax(dim=1, keepdim=True)
-                    train_acc = preds.eq(label.view_as(
-                        preds)).sum().item() / len(preds)
-                    cohort_acc += (1 / num_students) * train_acc
+                    top1, top5, ece_loss, entropy = self.metrics(student_outputs[i], label, topk=(1, 5))
+                    cohort_acc += (1 / num_students) * top1
 
                     train_loss = (1 - self.distil_weight) * ce_loss + \
                         self.distil_weight * student_loss
@@ -201,7 +191,8 @@ class DML:
 
                     if self.log and batch_idx % log_freq == 0:
                         wandb.log({
-                            f"student{i}/train_acc": train_acc,
+                            f"student{i}/train_top1_acc": top1,
+                            f"student{i}/train_top5_acc": top5,
                             f"student{i}/train_loss": train_loss,
                             f"student{i}/cross-entropy": ce_loss,
                             f"student{i}/divergence": student_loss,
@@ -212,30 +203,35 @@ class DML:
                             "epoch": ep,
                         }, step=cohort_step)
 
+                if self.log:
+                    wandb.log({
+                        "cohort_train_acc": cohort_acc,
+                        "epoch": ep,
+                    }, step=cohort_step)
                 cohort_step += 1
 
             cohort_val_acc = 0
             
             for student_id, student in enumerate(self.student_cohort):
-                _, epoch_val_acc = self._evaluate_model(student, verbose=False)
-                cohort_val_acc += (1 / num_students) * epoch_val_acc
+                _, top1_val_acc, top5_val_acc = self._evaluate_model(student, verbose=False)
+                cohort_val_acc += (1 / num_students) * top1_val_acc
 
-                if epoch_val_acc > best_acc:
-                    best_acc = epoch_val_acc
+                if top1_val_acc > best_acc:
+                    best_acc = top1_val_acc.item()
                     best_student_id = student_id
                     self.best_student_model_weights = deepcopy(
                         student.state_dict())
 
                 if self.log:
                     wandb.log({
-                        f"student{student_id}/val_acc": epoch_val_acc,
+                        f"student{student_id}/val_top1_acc": top1_val_acc,
+                        f"student{student_id}/val_top5_acc": top5_val_acc,
                         "epoch": ep,
                     }, step=cohort_step)
 
             if self.log:
                 wandb.log({
                     "best_student/val_acc": best_acc,
-                    "cohort_train_acc": cohort_acc,
                     "cohort_val_acc": cohort_val_acc,
                     "epoch": ep,
                 }, step=cohort_step)
@@ -260,8 +256,8 @@ class DML:
         :param verbose (bool): Display Accuracy
         """
         model.eval()
-        length_of_dataset = len(self.val_loader.dataset)
-        correct = 0
+        top1_acc = 0
+        top5_acc = 0
         outputs = []
 
         with torch.no_grad():
@@ -274,15 +270,17 @@ class DML:
                     output = output[0]
                 outputs.append(output)
 
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
+                top1, top5 = accuracy(output, target, topk=(1, 5))
+                top1_acc += top1
+                top5_acc += top5
 
-        accuracy = correct / length_of_dataset
+        top1_acc /= len(self.val_loader)
+        top5_acc /= len(self.val_loader)
 
         if verbose:
-            print(f"Accuracy: {accuracy}")
+            print(f"Accuracy: {top1_acc}")
 
-        return outputs, accuracy
+        return outputs, top1_acc, top5_acc
 
     def evaluate(self, verbose=True):
         """
@@ -296,9 +294,9 @@ class DML:
                 print(f"Evaluating student {i}")
 
             model = deepcopy(student).to(self.device)
-            out, acc = self._evaluate_model(model, verbose=verbose)
+            out, top1, top5 = self._evaluate_model(model, verbose=verbose)
 
-        return acc
+        return top1, top5
 
     def get_parameters(self):
         """

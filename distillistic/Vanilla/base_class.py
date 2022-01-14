@@ -4,10 +4,9 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 import wandb
-from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-from distillistic.utils import ECELoss
+from distillistic.utils import ClassifierMetrics, accuracy
 
 
 class BaseClass:
@@ -57,7 +56,7 @@ class BaseClass:
             print(
                 "The argument logdir is deprecated. All metadata is stored in run folder.")
         if self.log:
-            self.log_freq = 100
+            self.log_freq = min(100, int(len(self.train_loader) / 10))
 
         if device.type == "cpu":
             self.device = torch.device("cpu")
@@ -82,7 +81,7 @@ class BaseClass:
         if loss_fn is not None:
             self.loss_fn = loss_fn.to(self.device)
         self.ce_fn = nn.CrossEntropyLoss().to(self.device)
-        self.ece_loss = ECELoss(n_bins=15).to(self.device)
+        self.metrics = ClassifierMetrics().to(self.device)
 
     def train_teacher(
         self,
@@ -133,14 +132,7 @@ class BaseClass:
 
                 loss = self.ce_fn(out, label)
 
-                ece_loss = self.ece_loss(out, label).item()
-
-                out_dist = Categorical(logits=out)
-                entropy = out_dist.entropy().mean(dim=0)
-
-                preds = out.argmax(dim=1, keepdim=True)
-                train_acc = preds.eq(label.view_as(
-                    preds)).sum().item() / len(preds)
+                top1, top5, ece_loss, entropy = self.metrics(out, label, topk=(1, 5))
 
                 self.optimizer_teacher.zero_grad()
                 loss.backward()
@@ -150,7 +142,8 @@ class BaseClass:
 
                 if self.log and batch_idx % self.log_freq == 0:
                     wandb.log({
-                        "teacher/train_acc": train_acc,
+                        "teacher/train_top1_acc": top1,
+                        "teacher/train_top5_acc": top5,
                         "teacher/train_loss": loss,
                         "teacher/calibration_error": ece_loss,
                         "teacher/entropy": entropy,
@@ -159,17 +152,18 @@ class BaseClass:
                         "epoch": ep,
                     })
 
-            epoch_val_acc = self.evaluate(teacher=True, verbose=False)
+            top1_val_acc, top5_val_acc = self.evaluate(teacher=True, verbose=False)
 
-            if epoch_val_acc > best_acc:
-                best_acc = epoch_val_acc
+            if top1_val_acc > best_acc:
+                best_acc = top1_val_acc.item()
                 self.best_teacher_model_weights = deepcopy(
                     self.teacher_model.state_dict()
                 )
 
             if self.log:
                 wandb.log({
-                    "teacher/val_acc": epoch_val_acc,
+                    "teacher/val_top1_acc": top1_val_acc,
+                    "teacher/val_top5_acc": top5_val_acc,
                     "teacher/best_acc": best_acc,
                     "epoch": ep,
                 })
@@ -230,14 +224,7 @@ class BaseClass:
                 if isinstance(loss, tuple):
                     loss, ce_loss, divergence = loss
 
-                ece_loss = self.ece_loss(student_out, label).item()
-
-                out_dist = Categorical(logits=student_out)
-                entropy = out_dist.entropy().mean(dim=0)
-
-                preds = student_out.argmax(dim=1, keepdim=True)
-                train_acc = preds.eq(label.view_as(
-                    preds)).sum().item() / len(preds)
+                top1, top5, ece_loss, entropy = self.metrics(student_out, label, topk=(1, 5))
 
                 self.optimizer_student.zero_grad()
                 loss.backward()
@@ -247,7 +234,8 @@ class BaseClass:
 
                 if self.log and batch_idx % self.log_freq == 0:
                     wandb.log({
-                        "student/train_acc": train_acc,
+                        "student/train_top1_acc": top1,
+                        "student/train_top5_acc": top5,
                         "student/train_loss": loss,
                         "student/cross-entropy": ce_loss,
                         "student/divergence": divergence,
@@ -258,17 +246,18 @@ class BaseClass:
                         "epoch": ep,
                     })
 
-            epoch_val_acc = self.evaluate(teacher=False, verbose=False)
+            top1_val_acc, top5_val_acc = self.evaluate(verbose=False)
 
-            if epoch_val_acc > best_acc:
-                best_acc = epoch_val_acc
+            if top1_val_acc > best_acc:
+                best_acc = top1_val_acc.item()
                 self.best_student_model_weights = deepcopy(
                     self.student_model.state_dict()
                 )
 
             if self.log:
                 wandb.log({
-                    "student/val_acc": epoch_val_acc,
+                    "student/val_top1_acc": top1_val_acc,
+                    "student/val_top5_acc": top5_val_acc,
                     "student/best_acc": best_acc,
                     "epoch": ep,
                 })
@@ -328,8 +317,8 @@ class BaseClass:
         :param verbose (bool): Display Accuracy
         """
         model.eval()
-        length_of_dataset = len(self.val_loader.dataset)
-        correct = 0
+        top1_acc = 0
+        top5_acc = 0
         outputs = []
 
         with torch.no_grad():
@@ -342,16 +331,20 @@ class BaseClass:
                     output = output[0]
                 outputs.append(output)
 
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
+                # pred = output.argmax(dim=1, keepdim=True)
+                # correct += pred.eq(target.view_as(pred)).sum().item()
+                top1, top5 = accuracy(output, target, topk=(1, 5))
+                top1_acc += top1
+                top5_acc += top5
 
-        accuracy = correct / length_of_dataset
+        top1_acc /= len(self.val_loader)
+        top5_acc /= len(self.val_loader)
 
         if verbose:
             print("-" * 80)
-            print("Validation Accuracy: {}".format(accuracy))
+            print("Validation Accuracy: {}".format(top1_acc))
 
-        return outputs, accuracy
+        return outputs, top1_acc, top5_acc
 
     def evaluate(self, teacher=False, verbose=True):
         """
@@ -363,9 +356,9 @@ class BaseClass:
             model = deepcopy(self.teacher_model).to(self.device)
         else:
             model = deepcopy(self.student_model).to(self.device)
-        _, accuracy = self._evaluate_model(model, verbose=verbose)
+        _, top1, top5 = self._evaluate_model(model, verbose=verbose)
 
-        return accuracy
+        return top1, top5
 
     def get_parameters(self):
         """
