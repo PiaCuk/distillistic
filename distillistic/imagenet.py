@@ -93,7 +93,8 @@ def ImageNet_experiment(
 
         best_acc_list.append(acc)
         mean_acc = s.mean(best_acc_list)
-        wandb.log({"Experiment mean acc": mean_acc})
 
+        wandb.log({"Experiment mean acc": mean_acc})
         print(f"Mean validation accuracy of best model: {mean_acc}")
+        
         return mean_acc
