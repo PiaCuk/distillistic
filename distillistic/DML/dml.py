@@ -146,7 +146,7 @@ class DML:
             # Training loop
             for batch_idx, (data, label) in enumerate(tqdm(self.train_loader, total=epoch_len, position=1)):
                 cohort_acc = 0
-                
+
                 data = data.to(self.device)
                 label = label.to(self.device)
 
@@ -202,6 +202,7 @@ class DML:
 
                 if self.log and batch_idx % log_freq == 0:
                     # Log average accuracy for this batch and commit to wandb
+                    # See https://docs.wandb.ai/guides/track/log#stepwise-and-incremental-logging
                     wandb.log({
                         "cohort_train_acc": cohort_acc,
                         "epoch": ep,
