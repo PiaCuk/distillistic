@@ -134,8 +134,6 @@ class DML:
             print(
                 "The argument plot_losses is deprecated. All metrics are logged to W&B.\n")
 
-        cohort_step = 0
-
         for ep in tqdm(range(epochs), position=0):
 
             if schedule_distil_weight:
@@ -145,9 +143,10 @@ class DML:
                 else:
                     self.distil_weight = self.target_distil_weight
 
+            # Training loop
             for batch_idx, (data, label) in enumerate(tqdm(self.train_loader, total=epoch_len, position=1)):
-            # for (data, label) in self.train_loader:
-
+                cohort_acc = 0
+                
                 data = data.to(self.device)
                 label = label.to(self.device)
 
@@ -156,8 +155,6 @@ class DML:
 
                 # Forward passes to compute logits
                 student_outputs = [n(data) for n in self.student_cohort]
-
-                cohort_acc = 0
 
                 for i in range(num_students):
                     student_loss = 0
@@ -201,40 +198,43 @@ class DML:
                             f"student{i}/lr": self.student_schedulers[i].get_last_lr()[0],
                             f"student{i}/distil_weight": self.distil_weight,
                             "epoch": ep,
-                        }, step=cohort_step)
+                        }, commit=False)
 
-                if self.log:
+                if self.log and batch_idx % log_freq == 0:
+                    # Log average accuracy for this batch and commit to wandb
                     wandb.log({
                         "cohort_train_acc": cohort_acc,
                         "epoch": ep,
-                    }, step=cohort_step)
-                cohort_step += 1
+                    }, commit=True)
 
-            cohort_val_acc = 0
-            
-            for student_id, student in enumerate(self.student_cohort):
-                _, top1_val_acc, top5_val_acc = self._evaluate_model(student, verbose=False)
-                cohort_val_acc += (1 / num_students) * top1_val_acc
+                if batch_idx % int(2 * log_freq) == 0:
+                    cohort_val_acc = 0
+                    
+                    # Validation loop
+                    for student_id, student in enumerate(self.student_cohort):
+                        _, top1_val_acc, top5_val_acc = self._evaluate_model(student, verbose=False)
+                        cohort_val_acc += (1 / num_students) * top1_val_acc
 
-                if top1_val_acc > best_acc:
-                    best_acc = top1_val_acc.item()
-                    best_student_id = student_id
-                    self.best_student_model_weights = deepcopy(
-                        student.state_dict())
+                        if top1_val_acc > best_acc:
+                            best_acc = top1_val_acc.item()
+                            best_student_id = student_id
+                            self.best_student_model_weights = deepcopy(
+                                student.state_dict())
 
-                if self.log:
-                    wandb.log({
-                        f"student{student_id}/val_top1_acc": top1_val_acc,
-                        f"student{student_id}/val_top5_acc": top5_val_acc,
-                        "epoch": ep,
-                    }, step=cohort_step)
+                        if self.log:
+                            wandb.log({
+                                f"student{student_id}/val_top1_acc": top1_val_acc,
+                                f"student{student_id}/val_top5_acc": top5_val_acc,
+                                "epoch": ep,
+                            }, commit=False)
 
-            if self.log:
-                wandb.log({
-                    "best_student/val_acc": best_acc,
-                    "cohort_val_acc": cohort_val_acc,
-                    "epoch": ep,
-                }, step=cohort_step)
+                    if self.log:
+                        # Log average validation accuracy and commit to wandb
+                        wandb.log({
+                            "best_student/val_acc": best_acc,
+                            "cohort_val_acc": cohort_val_acc,
+                            "epoch": ep,
+                        }, commit=True)
 
         print(
             f"\nThe best student model is the model number {best_student_id} in the cohort. Validation accuracy {best_acc}")
