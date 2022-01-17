@@ -1,17 +1,18 @@
 import os
 
-from distillistic import (CustomKLDivLoss, ImageNet_experiment)
+from distillistic import (
+    CustomKLDivLoss, ImageNet_experiment, FMNIST_experiment)
 
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-    dataset = "imagecat"
-    
+    dataset = "Fashion-MNIST"
+
     if dataset == "imagenet":
         classes = 1000
-    elif dataset == "imagecat":
+    elif dataset == "imagecat" or dataset == "Fashion-MNIST":
         classes = 10
     else:
         classes = None
@@ -20,12 +21,12 @@ if __name__ == "__main__":
     save_path = f"./experiments/{dataset}/debug"
 
     # Use new universal main
-    for algo in ["tfkd"]: # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 5,
-            "batch_size": 64,
+            "epochs": 10,
+            "batch_size": 1024,
             "data_path": dataset_path,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
@@ -40,4 +41,8 @@ if __name__ == "__main__":
             "seed": 42,
             "classes": classes,
         }
-        ImageNet_experiment(**params)
+
+        if dataset == "Fashion-MNIST":
+            FMNIST_experiment(**params)
+        else:
+            ImageNet_experiment(**params)

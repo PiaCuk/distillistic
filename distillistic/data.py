@@ -13,37 +13,29 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
-# def FMNIST_loader(batch_size, train, generator=None, workers=16):
-#     return torch.utils.data.DataLoader(
-#         datasets.FashionMNIST(
-#             "data/FashionMNIST",
-#             train=train,
-#             download=True,
-#             transform=transforms.Compose(
-#                 [transforms.ToTensor(), transforms.Normalize((0.2860,), (0.3530,))]
-#             ),
-#         ),
-#         batch_size=batch_size,
-#         shuffle=True,
-#         pin_memory=True,
-#         num_workers=workers,
-#         worker_init_fn=seed_worker if generator is not None else None,
-#         generator=generator,
-#         persistent_workers=True,
-#     )
-
-
 def FMNIST_loader(data_path, batch_size, train, generator=None, workers=4, weighted_sampler=False):
+    normalize = transforms.Normalize((0.2860,), (0.3530,))
+    if train:
+        trans = transforms.Compose([
+            transforms.RandAugment(),
+            transforms.Grayscale(num_output_channels=3),
+            transforms.ToTensor(),
+            normalize,
+        ])
+    else:
+        trans = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
+            transforms.ToTensor(),
+            normalize,
+        ])
+
     dataset = datasets.FashionMNIST(
         data_path,
         train=train,
         download=True,
-        transform=transforms.Compose(
-            [transforms.Grayscale(num_output_channels=3),
-             transforms.ToTensor(),
-             transforms.Normalize((0.2860,), (0.3530,))]
-        ),
+        transform=trans,
     )
+
     if weighted_sampler:
         class_weight = 0.9
         num_classes = 10
@@ -56,6 +48,7 @@ def FMNIST_loader(data_path, batch_size, train, generator=None, workers=4, weigh
             replacement=True,
             generator=generator,
         )
+
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -91,6 +84,7 @@ def ImageNet_loader(data_path, batch_size, train, generator=None, workers=4):
         ])
 
     dataset = datasets.ImageFolder(data_dir, trans)
+    
     return torch.utils.data.DataLoader(
         dataset,
         batch_size,

@@ -3,10 +3,11 @@ import os
 import statistics as s
 
 import torch
+import wandb
 
 from distillistic.data import FMNIST_loader
-from distillistic.utils import CustomKLDivLoss, set_seed
 from distillistic.distiller import create_distiller
+from distillistic.utils import CustomKLDivLoss, set_seed
 
 
 def FMNIST_experiment(
@@ -14,6 +15,7 @@ def FMNIST_experiment(
     runs,
     epochs,
     batch_size,
+    data_path,
     save_path,
     loss_fn=CustomKLDivLoss(),
     lr=0.005,
@@ -25,6 +27,7 @@ def FMNIST_experiment(
     use_weighted_dl=False,
     schedule_distil_weight=False,
     seed=None,
+    classes=10,
 ):
     """
     Universal main function for my Knowledge Distillation experiments
@@ -33,6 +36,7 @@ def FMNIST_experiment(
     :param runs (int): Number of runs for each algorithm
     :param epochs (int): Number of epochs to train per run
     :param batch_size (int): Batch size for training
+    :param data_path (str): Directory from which to load the data
     :param save_path (str): Directory for storing logs and saving models
     :param loss_fn (torch.nn.Module): Loss Function used for distillation. Only used for DML
     :param lr (float): Learning rate
@@ -44,18 +48,23 @@ def FMNIST_experiment(
     :param use_weighted_dl (bool): True to use weighted DataLoader with oversampling
     :param schedule_distil_weight (bool): True to increase distil_weight from 0 to distil_weight over warm-up period
     :param seed: Random seed
+    :param classes (int): number of classes in training data. Default for ImageNet is 1000
     """
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # Set seed for all libraries and return torch.Generator
     g = set_seed(seed) if seed is not None else None
-    workers = 15 if torch.cuda.is_available() else 4
+    workers = 12 if torch.cuda.is_available() else 4
 
     # Create DataLoaders
-    train_loader = FMNIST_loader("data/FashionMNIST",
-                                 batch_size, train=True, generator=g, workers=workers, weighted_sampler=use_weighted_dl)
-    test_loader = FMNIST_loader("data/FashionMNIST",
-                                batch_size, train=False, generator=g, workers=15, weighted_sampler=use_weighted_dl)
+    train_loader = FMNIST_loader(
+        data_path, batch_size, train=True, generator=g, 
+        workers=workers, weighted_sampler=use_weighted_dl
+    )
+    test_loader = FMNIST_loader(
+        data_path, batch_size, train=False, generator=g, 
+        workers=workers, weighted_sampler=use_weighted_dl
+    )
 
     best_acc_list = []
 
@@ -63,10 +72,11 @@ def FMNIST_experiment(
         print(f"Starting run {i}")
         run_path = os.path.join(save_path, algo + str(i).zfill(3))
 
+        wandb.init(dir=run_path, config=locals(), project="Fashion-MNIST", entity="piacuk", reinit=True)
+
         distiller = create_distiller(
-            algo, train_loader, test_loader, device, save_path=run_path, num_classes=10,
-            loss_fn=loss_fn, lr=lr, distil_weight=distil_weight, temperature=temperature,
-            num_students=num_students, pretrained=use_pretrained
+            algo, train_loader, test_loader, device, num_classes=classes, loss_fn=loss_fn, lr=lr, 
+            distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained
         )
 
         params = {"epochs": epochs, "plot_losses": False, "save_model": True,
@@ -79,14 +89,19 @@ def FMNIST_experiment(
         elif algo == "tfkd":
             acc = distiller.train_student(**params, smooth_teacher=False)
         else:
-            if not use_pretrained:
-                distiller.train_teacher(**params)
+            state_dict = torch.load(
+                "./experiments/Fashion-MNIST/pretrained_models/teacher.pt"
+            )
+            distiller.teacher_model.load_state_dict(state_dict)
+            # distiller.train_teacher(**params)
             acc = distiller.train_student(**params)
 
         best_acc_list.append(acc)
         mean_acc = s.mean(best_acc_list)
 
+        wandb.log({"Experiment mean acc": mean_acc})
         print(f"Mean validation accuracy of best model: {mean_acc}")
+        
         return mean_acc
 
 
@@ -94,6 +109,7 @@ def FMNIST_test(
     algo,
     load_dir,
     batch_size,
+    data_path,
     loss_fn=CustomKLDivLoss(),
     lr=0.005,
     distil_weight=0.5,
@@ -107,6 +123,7 @@ def FMNIST_test(
     :param algo (str): Name of the training algorithm to use. Either "dml", "dml_e", else VanillaKD
     :param load_dir (str):
     :param batch_size (int): Batch size for training
+    :param data_path (str): Directory from which to load the data
     :param loss_fn (torch.nn.Module): Loss Function used for distillation. Not used for VanillaKD (BaseClass), as it is implemented internally
     :param lr (float): Learning rate
     :param distil_weight (float): Between 0 and 1
@@ -116,12 +133,17 @@ def FMNIST_test(
     """
     # Set seed for all libraries and return torch.Generator
     g = set_seed(seed) if seed is not None else None
+    workers = 12 if torch.cuda.is_available() else 4
 
     # Create DataLoaders
-    train_loader = FMNIST_loader("data/FashionMNIST", batch_size, train=True,
-                                 generator=g, workers=8, weighted_sampler=use_weighted_dl)
-    test_loader = FMNIST_loader("data/FashionMNIST", batch_size, train=False,
-                                generator=g, workers=8, weighted_sampler=use_weighted_dl)
+    train_loader = FMNIST_loader(
+        data_path, batch_size, train=True, generator=g, 
+        workers=workers, weighted_sampler=use_weighted_dl
+    )
+    test_loader = FMNIST_loader(
+        data_path, batch_size, train=False, generator=g, 
+        workers=workers, weighted_sampler=use_weighted_dl
+    )
 
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
