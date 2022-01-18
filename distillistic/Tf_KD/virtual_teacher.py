@@ -151,21 +151,22 @@ class VirtualTeacher:
                         "epoch": ep,
                     })
 
-            top1_val_acc, top5_val_acc = self.evaluate(verbose=False)
+                if batch_idx % int(2 * log_freq) == 0:
+                    top1_val_acc, top5_val_acc = self.evaluate(verbose=False)
 
-            if top1_val_acc > best_acc:
-                best_acc = top1_val_acc.item()
-                self.best_student_model_weights = deepcopy(
-                    self.student_model.state_dict()
-                )
+                    if top1_val_acc > best_acc:
+                        best_acc = top1_val_acc.item()
+                        self.best_student_model_weights = deepcopy(
+                            self.student_model.state_dict()
+                        )
 
-            if self.log:
-                wandb.log({
-                    "student/val_top1_acc": top1_val_acc,
-                    "student/val_top5_acc": top5_val_acc,
-                    "student/best_acc": best_acc,
-                    "epoch": ep,
-                })
+                    if self.log:
+                        wandb.log({
+                            "student/val_top1_acc": top1_val_acc,
+                            "student/val_top5_acc": top5_val_acc,
+                            "student/best_acc": best_acc,
+                            "epoch": ep,
+                        })
 
         print(
             f"\nThe best student model validation accuracy {best_acc}")
