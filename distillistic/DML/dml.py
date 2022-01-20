@@ -71,7 +71,7 @@ class DML:
 
         for student in self.student_cohort:
             student.to(self.device)
-        self.metrics = ClassifierMetrics().to(self.device)
+        self.metrics = ClassifierMetrics(device=self.device)
 
     def ensemble_target(self, logits_list, j):
         # Calculate ensemble target given a list of logits, omitting the j'th element
@@ -175,7 +175,7 @@ class DML:
 
                     ce_loss = F.cross_entropy(student_outputs[i], label)
 
-                    top1, top5, ece_loss, entropy = self.metrics(student_outputs[i], label, topk=(1, 5))
+                    top1, top5, ece_loss, entropy, virtual_kld = self.metrics(student_outputs[i], label, topk=(1, 5))
                     cohort_acc += (1 / num_students) * top1
 
                     train_loss = (1 - self.distil_weight) * ce_loss + \
@@ -195,6 +195,7 @@ class DML:
                             f"student{i}/divergence": student_loss,
                             f"student{i}/calibration_error": ece_loss,
                             f"student{i}/entropy": entropy,
+                            f"student{i}/virtual_kld": virtual_kld,
                             f"student{i}/lr": self.student_schedulers[i].get_last_lr()[0],
                             f"student{i}/distil_weight": self.distil_weight,
                             "epoch": ep,

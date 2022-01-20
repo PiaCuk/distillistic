@@ -81,7 +81,7 @@ class BaseClass:
         if loss_fn is not None:
             self.loss_fn = loss_fn.to(self.device)
         self.ce_fn = nn.CrossEntropyLoss().to(self.device)
-        self.metrics = ClassifierMetrics().to(self.device)
+        self.metrics = ClassifierMetrics(device=self.device)
 
     def train_teacher(
         self,
@@ -132,7 +132,7 @@ class BaseClass:
 
                 loss = self.ce_fn(out, label)
 
-                top1, top5, ece_loss, entropy = self.metrics(out, label, topk=(1, 5))
+                top1, top5, ece_loss, entropy, virtual_kld = self.metrics(out, label, topk=(1, 5))
 
                 self.optimizer_teacher.zero_grad()
                 loss.backward()
@@ -147,6 +147,7 @@ class BaseClass:
                         "teacher/train_loss": loss,
                         "teacher/calibration_error": ece_loss,
                         "teacher/entropy": entropy,
+                        "teacher/virtual_kld": virtual_kld,
                         "teacher/lr": scheduler_teacher.get_last_lr()[0],
                         "teacher/distil_weight": self.distil_weight,
                         "epoch": ep,
@@ -226,7 +227,7 @@ class BaseClass:
                 if isinstance(loss, tuple):
                     loss, ce_loss, divergence = loss
 
-                top1, top5, ece_loss, entropy = self.metrics(student_out, label, topk=(1, 5))
+                top1, top5, ece_loss, entropy, virtual_kld = self.metrics(student_out, label, topk=(1, 5))
 
                 self.optimizer_student.zero_grad()
                 loss.backward()
@@ -243,6 +244,7 @@ class BaseClass:
                         "student/divergence": divergence,
                         "student/calibration_error": ece_loss,
                         "student/entropy": entropy,
+                        "student/virtual_kld": virtual_kld,
                         "student/lr": scheduler_student.get_last_lr()[0],
                         "student/distil_weight": self.distil_weight,
                         "epoch": ep,

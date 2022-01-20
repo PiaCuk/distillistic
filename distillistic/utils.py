@@ -11,7 +11,7 @@ from torch.distributions.categorical import Categorical
 class ECELoss(torch.nn.Module):
     """
     From https://github.com/gpleiss/temperature_scaling
-    
+
     Calculates the Expected Calibration Error of a model.
     (This isn't necessary for temperature scaling, just a cool metric).
 
@@ -29,6 +29,7 @@ class ECELoss(torch.nn.Module):
     "Obtaining Well Calibrated Probabilities Using Bayesian Binning." AAAI.
     2015.
     """
+
     def __init__(self, n_bins=15):
         """
         n_bins (int): number of confidence interval bins
@@ -46,12 +47,14 @@ class ECELoss(torch.nn.Module):
         ece = torch.zeros(1, device=logits.device)
         for bin_lower, bin_upper in zip(self.bin_lowers, self.bin_uppers):
             # Calculated |confidence - accuracy| in each bin
-            in_bin = confidences.gt(bin_lower.item()) * confidences.le(bin_upper.item())
+            in_bin = confidences.gt(bin_lower.item()) * \
+                confidences.le(bin_upper.item())
             prop_in_bin = in_bin.float().mean()
             if prop_in_bin.item() > 0:
                 accuracy_in_bin = accuracies[in_bin].float().mean()
                 avg_confidence_in_bin = confidences[in_bin].mean()
-                ece += torch.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
+                ece += torch.abs(avg_confidence_in_bin -
+                                 accuracy_in_bin) * prop_in_bin
 
         return ece
 
@@ -84,19 +87,38 @@ class SoftKLDivLoss(torch.nn.Module):
 
 
 class ClassifierMetrics(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, device) -> None:
         super(ClassifierMetrics, self).__init__()
-        self.ece_loss = ECELoss(n_bins=15)
+        self.device = device
+        self.ece_loss = ECELoss(n_bins=15).to(self.device)
+        self.virtual_prob = 0.9
+
+    def virtual_teacher(self, pred: Tensor, target: Tensor) -> Tensor:
+        num_classes = pred.shape[1]
+
+        virtual_teacher = torch.ones_like(pred, device=self.device)
+        virtual_teacher = virtual_teacher * \
+            (1 - self.virtual_prob) / (num_classes - 1)
+        for i in range(pred.shape[0]):
+            virtual_teacher[i, target[i]] = self.virtual_prob
+
+        soft_student_out = F.log_softmax(pred, dim=1)
+
+        kl_div = F.kl_div(input=soft_student_out, target=virtual_teacher,
+                          reduction='batchmean', log_target=False)
+        return kl_div
 
     def forward(self, pred: Tensor, target: Tensor, topk=(1,)) -> List[torch.FloatTensor]:
         """
-        Returns a list with top k accuracy, ECE loss, and entropy of the predicted distribution
+        Returns a list with top k accuracy, ECE loss, entropy, and virtual teacher divergence of the predicted distribution.
         """
         metrics_list = accuracy(pred, target, topk) # List with top k accuracies
         metrics_list.append(self.ece_loss(pred, target)) # ECE loss
 
         out_dist = Categorical(logits=pred)
         metrics_list.append(out_dist.entropy().mean(dim=0)) # distribution entropy
+
+        metrics_list.append(self.virtual_teacher(pred, target))
 
         return metrics_list
 
@@ -138,7 +160,7 @@ def accuracy(output: Tensor, target: Tensor, topk=(1,)) -> List[torch.FloatTenso
             tot_correct_topk = flattened_indicator_which_topk_matched_truth.float().sum(dim=0, keepdim=True)
             topk_acc = tot_correct_topk / batch_size
             list_topk_accs.append(topk_acc)
-        
+
         return list_topk_accs
 
 

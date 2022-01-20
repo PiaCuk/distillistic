@@ -70,7 +70,7 @@ class VirtualTeacher:
             self.device = torch.device("cpu")
 
         self.student_model = student_model.to(self.device)
-        self.metrics = ClassifierMetrics().to(self.device)
+        self.metrics = ClassifierMetrics(device=self.device)
 
     def train_student(
         self,
@@ -129,7 +129,7 @@ class VirtualTeacher:
                 if isinstance(loss, tuple):
                     loss, ce_loss, divergence = loss
 
-                top1, top5, ece_loss, entropy = self.metrics(student_out, label, topk=(1, 5))
+                top1, top5, ece_loss, entropy, _ = self.metrics(student_out, label, topk=(1, 5))
 
                 self.optimizer_student.zero_grad()
                 loss.backward()
