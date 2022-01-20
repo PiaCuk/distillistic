@@ -71,6 +71,8 @@ def FMNIST_experiment(
     for i in range(runs):
         print(f"Starting run {i}")
         run_path = os.path.join(save_path, algo + str(i).zfill(3))
+        if not os.path.isdir(run_path):
+            os.makedirs(run_path)
 
         wandb.init(dir=run_path, config=locals(), project="Fashion-MNIST", entity="piacuk", reinit=True)
 
@@ -90,10 +92,17 @@ def FMNIST_experiment(
             acc = distiller.train_student(**params, smooth_teacher=False)
         else:
             state_dict = torch.load(
-                "./experiments/Fashion-MNIST/pretrained_models/teacher.pt"
+                "./experiments/Fashion-MNIST/pretrained_models/vanilla000/teacher.pt"
             )
             distiller.teacher_model.load_state_dict(state_dict)
-            # distiller.train_teacher(**params)
+            # distiller.train_teacher(epochs=int(epochs / 2), save_model_path=run_path, use_scheduler=use_scheduler)
+            
+            teacher1, teacher5 = distiller.evaluate(teacher=True)
+            wandb.log({
+                        "teacher/val_top1_acc": teacher1,
+                        "teacher/val_top5_acc": teacher5,
+                    }, commit=False)
+            
             acc = distiller.train_student(**params)
 
         best_acc_list.append(acc)
