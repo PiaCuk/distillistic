@@ -8,7 +8,7 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-    dataset = "Fashion-MNIST"
+    dataset = "imagenet"
 
     if dataset == "imagenet":
         classes = 1000
@@ -18,15 +18,16 @@ if __name__ == "__main__":
         classes = None
 
     dataset_path = f"../data/{dataset}"
-    save_path = f"./experiments/{dataset}/debug"
+    ffcv_path = f"../data/ffcv-imagenet/"
+    save_path = f"./experiments/{dataset}/session2"
 
     # Use new universal main
-    for algo in ["dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["tfkd"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 10,
-            "batch_size": 1024,
+            "epochs": 20,
+            "batch_size": 64,
             "data_path": dataset_path,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
