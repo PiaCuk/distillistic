@@ -160,7 +160,11 @@ def FFCV_ImageNet_loader(data_path, batch_size, device, train, workers=4, in_mem
     return loader
 
 
-def ImageNet_loader(data_path, batch_size, device, train, generator=None, workers=4, use_amp=False):
-    ffcv_name = "train_500_0.50_90.ffcv" if train else "val_500_0.50_90.ffcv"
-    ffcv_path = os.path.join(data_path, ffcv_name)
-    return FFCV_ImageNet_loader(ffcv_path, batch_size, device, train, workers, use_amp=use_amp)
+def ImageNet_loader(data_path, batch_size, device, train, generator=None, workers=4, use_amp=False, use_ffcv=False):
+    print(f"Load data with FFCV is set to {use_ffcv}.")
+    if use_ffcv:
+        ffcv_name = "train_500_0.50_90.ffcv" if train else "val_500_0.50_90.ffcv"
+        ffcv_path = os.path.join(data_path, ffcv_name)
+        return FFCV_ImageNet_loader(ffcv_path, batch_size, device, train, workers, use_amp=use_amp)
+    else:
+        return _ImageNet_loader(data_path, batch_size, train, generator, workers)

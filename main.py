@@ -6,9 +6,9 @@ from distillistic import (
 
 if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    dataset = "ffcv-imagenet"
+    dataset = "imagenet"
 
     if dataset == "imagenet" or dataset == "ffcv-imagenet":
         classes = 1000
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     save_path = f"./experiments/{dataset}/debug"
 
     # Use new universal main
-    for algo in ["dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["tfkd"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
@@ -40,7 +40,8 @@ if __name__ == "__main__":
             "schedule_distil_weight": False,
             "seed": 42,
             "classes": classes,
-            "use_amp": dataset == "ffcv-imagenet",
+            "use_amp": True,
+            "use_ffcv": dataset == "ffcv-imagenet",
         }
 
         if dataset == "Fashion-MNIST":

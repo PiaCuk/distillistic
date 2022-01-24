@@ -28,6 +28,7 @@ def ImageNet_experiment(
     seed=None,
     classes=1000,
     use_amp=False,
+    use_ffcv=False,
 ):
     """
     Universal main function for my Knowledge Distillation experiments
@@ -50,6 +51,7 @@ def ImageNet_experiment(
     :param seed: Random seed
     :param classes (int): number of classes in training data. Default for ImageNet is 1000
     :param use_amp (bool): True to use Automated Mixed Precision
+    :param use_ffcv (bool): True to load data with FFCV
     """
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -60,9 +62,9 @@ def ImageNet_experiment(
     # Create DataLoaders
     print(f"Training with AMP is set to {use_amp}.")
     train_loader = ImageNet_loader(data_path, batch_size, device,
-                                   train=True, generator=g, workers=workers, use_amp=use_amp)
+                                   train=True, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv)
     test_loader = ImageNet_loader(data_path, batch_size, device,
-                                  train=False, generator=g, workers=workers, use_amp=use_amp)
+                                  train=False, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv)
 
     best_acc_list = []
 
