@@ -20,6 +20,7 @@ class VanillaKD(BaseClass):
     :param device (str): Device used for training; 'cpu' for cpu and 'cuda' for gpu
     :param log (bool): True if logging required
     :param logdir (str): Directory for storing logs
+    :param use_amp (bool): True to use Automated Mixed Precision
     """
 
     def __init__(
@@ -36,6 +37,7 @@ class VanillaKD(BaseClass):
         device="cpu",
         log=False,
         logdir="./experiments",
+        use_amp=False,
     ):
         if loss_fn is not None:
             print("The argument loss_fn is deprecated. The loss is calculated internally.")
@@ -53,6 +55,7 @@ class VanillaKD(BaseClass):
             device,
             log,
             logdir,
+            use_amp,
         )
 
     def calculate_kd_loss(self, y_pred_student, y_pred_teacher, y_true):

@@ -4,6 +4,7 @@ from copy import deepcopy
 import torch
 import torch.nn.functional as F
 import wandb
+from torch.cuda.amp import autocast
 from tqdm import tqdm
 
 from distillistic.utils import ClassifierMetrics, accuracy
@@ -26,6 +27,7 @@ class VirtualTeacher:
     :param device (str): Device used for training; 'cpu' for cpu and 'cuda' for gpu
     :param log (bool): True if logging required
     :param logdir (str): DEPRECATED Directory for storing logs
+    :param use_amp (bool): True to use Automated Mixed Precision
     """
 
     def __init__(
@@ -40,6 +42,7 @@ class VirtualTeacher:
         device="cpu",
         log=False,
         logdir=None,
+        use_amp=False,
     ):
 
         self.student_model = student_model
@@ -51,6 +54,7 @@ class VirtualTeacher:
         self.distil_weight = distil_weight
         self.log = log
         self.logdir = logdir
+        self.amp = use_amp
 
         if self.logdir is not None:
             print(
@@ -71,6 +75,7 @@ class VirtualTeacher:
 
         self.student_model = student_model.to(self.device)
         self.metrics = ClassifierMetrics(device=self.device)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.amp)
 
     def train_student(
         self,
@@ -120,20 +125,24 @@ class VirtualTeacher:
                 data = data.to(self.device)
                 label = label.to(self.device)
 
-                student_out = self.student_model(data)
-                if isinstance(student_out, tuple):
-                    student_out = student_out[0]
+                self.optimizer_student.zero_grad(set_to_none=True)
 
-                loss = self.calculate_kd_loss(
-                    student_out, label, smooth_teacher=smooth_teacher)
-                if isinstance(loss, tuple):
-                    loss, ce_loss, divergence = loss
+                with autocast(enabled=self.amp):
+                    student_out = self.student_model(data)
+                    if isinstance(student_out, tuple):
+                        student_out = student_out[0]
+
+                    loss = self.calculate_kd_loss(
+                        student_out, label, smooth_teacher=smooth_teacher)
+                    if isinstance(loss, tuple):
+                        loss, ce_loss, divergence = loss
 
                 top1, top5, ece_loss, entropy, _ = self.metrics(student_out, label, topk=(1, 5))
 
-                self.optimizer_student.zero_grad()
-                loss.backward()
-                self.optimizer_student.step()
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer_student)
+                self.scaler.update()
+                
                 if use_scheduler:
                     scheduler_student.step()
 
@@ -218,12 +227,14 @@ class VirtualTeacher:
 
         with torch.no_grad():
             for data, target in self.val_loader:
+                
                 data = data.to(self.device)
                 target = target.to(self.device)
-                output = model(data)
-
-                if isinstance(output, tuple):
-                    output = output[0]
+                
+                with autocast(enabled=self.amp):
+                    output = model(data)
+                    if isinstance(output, tuple):
+                        output = output[0]
 
                 # pred = output.argmax(dim=1, keepdim=True)
                 # correct += pred.eq(target.view_as(pred)).sum().item()

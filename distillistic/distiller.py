@@ -27,7 +27,9 @@ def create_distiller(
     temperature=10.0,
     num_students=2,
     pretrained=False,
-    use_adam=True):
+    use_adam=True,
+    use_amp=False,
+):
     """
     Create distillers for benchmarking.
 
@@ -43,6 +45,7 @@ def create_distiller(
     :param num_students (int): Number of students in cohort. Used for DML
     :param pretrained (bool): True to use pretrained torchvision models
     :param use_adam (bool): True to use Adam optim
+    :param use_amp (bool): True to use Automated Mixed Precision
     """
     student_params = {"num_classes": num_classes, "pretrained": pretrained, "last_layer_only": pretrained}
 
@@ -53,24 +56,23 @@ def create_distiller(
             student_cohort[i].parameters(), lr, adam=use_adam) for i in range(num_students)]
         # Define DML with logging to Tensorboard
         distiller = DML(student_cohort, train_loader, test_loader, student_optimizers, loss_fn=loss_fn, distil_weight=distil_weight,
-                        log=True, device=device, use_ensemble=True if algo == "dml_e" else False)
+                        log=True, device=device, use_ensemble=True if algo == "dml_e" else False, use_amp=use_amp)
     elif algo == "tfkd":
         student = resnet18(**student_params)
         student_optimizer = _create_optim(
             student.parameters(), lr, adam=use_adam)
         # Define TfKD with logging to Tensorboard
         distiller = VirtualTeacher(student, train_loader, test_loader, student_optimizer,
-            temp=temperature, distil_weight=distil_weight, log=True, device=device)
+            temp=temperature, distil_weight=distil_weight, log=True, device=device, use_amp=use_amp)
     else:
         teacher = resnet50(num_classes=num_classes, pretrained=True)
         student = resnet18(**student_params)
-
         teacher_optimizer = _create_optim(
             teacher.parameters(), lr, adam=use_adam)
         student_optimizer = _create_optim(
             student.parameters(), lr, adam=use_adam)
         # Define KD with logging to Tensorboard
         distiller = VanillaKD(teacher, student, train_loader, test_loader, teacher_optimizer, student_optimizer,
-                              temp=temperature, distil_weight=distil_weight, log=True, device=device)
+                              temp=temperature, distil_weight=distil_weight, log=True, device=device, use_amp=use_amp)
 
     return distiller

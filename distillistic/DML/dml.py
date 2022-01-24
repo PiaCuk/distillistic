@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
+from torch.cuda.amp import autocast
 from tqdm import tqdm
 
 from distillistic.utils import ClassifierMetrics, accuracy
@@ -23,6 +24,7 @@ class DML:
     :param log (bool): True if logging required
     :param logdir (str): DEPRECATED Directory for storing logs
     :param use_ensemble (bool): If True, use ensemble target. Otherwise, compare students pairwise
+    :param use_amp (bool): True to use Automated Mixed Precision
     """
 
     def __init__(
@@ -37,6 +39,7 @@ class DML:
         log=False,
         logdir=None,
         use_ensemble=True,
+        use_amp=False,
     ):
 
         self.student_cohort = student_cohort
@@ -48,6 +51,7 @@ class DML:
         self.log = log
         self.logdir = logdir
         self.use_ensemble = use_ensemble
+        self.amp = use_amp
 
         if self.use_ensemble:
             print("Using ensemble target for divergence loss.")
@@ -68,9 +72,12 @@ class DML:
                 "Either an invalid device or CUDA is not available. Defaulting to CPU."
             )
             self.device = torch.device("cpu")
-
+        
+        self.student_scalers = []
         for student in self.student_cohort:
             student.to(self.device)
+            self.student_scalers.append(torch.cuda.amp.GradScaler(enabled=self.amp))
+        
         self.metrics = ClassifierMetrics(device=self.device)
 
     def ensemble_target(self, logits_list, j):
@@ -151,38 +158,42 @@ class DML:
                 label = label.to(self.device)
 
                 for optim in self.student_optimizers:
-                    optim.zero_grad()
+                    optim.zero_grad(set_to_none=True)
 
-                # Forward passes to compute logits
-                student_outputs = [n(data) for n in self.student_cohort]
+                with autocast(enabled=self.amp):
+                    # Forward passes to compute logits
+                    student_outputs = [n(data) for n in self.student_cohort]
 
                 for i in range(num_students):
                     student_loss = 0
-                    if self.use_ensemble:
-                        # Calculate ensemble target w/o applying softmax here
-                        target = self.ensemble_target(student_outputs, i)
-                        # Softmax should be applied in loss_fn
-                        student_loss += self.loss_fn(
-                            student_outputs[i], target.detach())
-                    else:
-                        # Calculate pairwise divergence
-                        for j in range(num_students):
-                            if i == j:
-                                continue
-                            else:
-                                student_loss += (1 / (num_students - 1)) * self.loss_fn(
-                                    student_outputs[i], student_outputs[j].detach())
+                    
+                    with autocast(enabled=self.amp):
+                        if self.use_ensemble:
+                            # Calculate ensemble target w/o applying softmax here
+                            target = self.ensemble_target(student_outputs, i)
+                            # Softmax should be applied in loss_fn
+                            student_loss += self.loss_fn(
+                                student_outputs[i], target.detach())
+                        else:
+                            # Calculate pairwise divergence
+                            for j in range(num_students):
+                                if i == j:
+                                    continue
+                                else:
+                                    student_loss += (1 / (num_students - 1)) * self.loss_fn(
+                                        student_outputs[i], student_outputs[j].detach())
 
-                    ce_loss = F.cross_entropy(student_outputs[i], label)
+                        ce_loss = F.cross_entropy(student_outputs[i], label)
+                        train_loss = (1 - self.distil_weight) * ce_loss + \
+                        self.distil_weight * student_loss
 
                     top1, top5, ece_loss, entropy, virtual_kld = self.metrics(student_outputs[i], label, topk=(1, 5))
                     cohort_acc += (1 / num_students) * top1
 
-                    train_loss = (1 - self.distil_weight) * ce_loss + \
-                        self.distil_weight * student_loss
+                    self.student_scalers[i].scale(train_loss).backward()
+                    self.student_scalers[i].step(self.student_optimizers[i])
+                    self.student_scalers[i].update()
 
-                    train_loss.backward()
-                    self.student_optimizers[i].step()
                     if use_scheduler:
                         self.student_schedulers[i].step()
 
@@ -264,13 +275,15 @@ class DML:
 
         with torch.no_grad():
             for data, target in self.val_loader:
+                
                 data = data.to(self.device)
                 target = target.to(self.device)
-                output = model(data)
-
-                if isinstance(output, tuple):
-                    output = output[0]
-                outputs.append(output)
+                
+                with autocast(enabled=self.amp):
+                    output = model(data)
+                    if isinstance(output, tuple):
+                        output = output[0]
+                    outputs.append(output)
 
                 top1, top5 = accuracy(output, target, topk=(1, 5))
                 top1_acc += top1

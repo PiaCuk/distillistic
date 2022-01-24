@@ -27,6 +27,7 @@ def ImageNet_experiment(
     schedule_distil_weight=False,
     seed=None,
     classes=1000,
+    use_amp=False,
 ):
     """
     Universal main function for my Knowledge Distillation experiments
@@ -48,6 +49,7 @@ def ImageNet_experiment(
     :param schedule_distil_weight (bool): True to increase distil_weight from 0 to distil_weight over warm-up period
     :param seed: Random seed
     :param classes (int): number of classes in training data. Default for ImageNet is 1000
+    :param use_amp (bool): True to use Automated Mixed Precision
     """
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -56,10 +58,11 @@ def ImageNet_experiment(
     workers = 12 if torch.cuda.is_available() else 4
 
     # Create DataLoaders
-    train_loader = ImageNet_loader(data_path,
-                                   batch_size, train=True, generator=g, workers=workers)
-    test_loader = ImageNet_loader(data_path,
-                                  batch_size, train=False, generator=g, workers=workers)
+    print(f"Training with AMP is set to {use_amp}.")
+    train_loader = ImageNet_loader(data_path, batch_size, device,
+                                   train=True, generator=g, workers=workers, use_amp=use_amp)
+    test_loader = ImageNet_loader(data_path, batch_size, device,
+                                  train=False, generator=g, workers=workers, use_amp=use_amp)
 
     best_acc_list = []
 
@@ -75,7 +78,8 @@ def ImageNet_experiment(
         
         distiller = create_distiller(
             algo, train_loader, test_loader, device, num_classes=classes, loss_fn=loss_fn, lr=lr, 
-            distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained
+            distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained,
+            use_amp=use_amp
         )
 
         params = {"epochs": epochs, "save_model": True, "save_model_path": run_path, "use_scheduler": use_scheduler}

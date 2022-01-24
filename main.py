@@ -8,9 +8,9 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-    dataset = "imagenet"
+    dataset = "ffcv-imagenet"
 
-    if dataset == "imagenet":
+    if dataset == "imagenet" or dataset == "ffcv-imagenet":
         classes = 1000
     elif dataset == "imagecat" or dataset == "Fashion-MNIST":
         classes = 10
@@ -18,15 +18,14 @@ if __name__ == "__main__":
         classes = None
 
     dataset_path = f"../data/{dataset}"
-    ffcv_path = f"../data/ffcv-imagenet/"
-    save_path = f"./experiments/{dataset}/session2"
+    save_path = f"./experiments/{dataset}/debug"
 
     # Use new universal main
-    for algo in ["tfkd"]:  # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 20,
+            "epochs": 2,
             "batch_size": 64,
             "data_path": dataset_path,
             "save_path": save_path,
@@ -41,6 +40,7 @@ if __name__ == "__main__":
             "schedule_distil_weight": False,
             "seed": 42,
             "classes": classes,
+            "use_amp": dataset == "ffcv-imagenet",
         }
 
         if dataset == "Fashion-MNIST":

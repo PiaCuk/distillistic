@@ -4,6 +4,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 import wandb
+from torch.cuda.amp import autocast
 from tqdm import tqdm
 
 from distillistic.utils import ClassifierMetrics, accuracy
@@ -25,6 +26,7 @@ class BaseClass:
     :param device (str): Device used for training; 'cpu' for cpu and 'cuda' for gpu
     :param log (bool): True if logging required
     :param logdir (str): DEPRECATED Directory for storing logs
+    :param use_amp (bool): True to use Automated Mixed Precision
     """
 
     def __init__(
@@ -41,6 +43,7 @@ class BaseClass:
         device="cpu",
         log=False,
         logdir=None,
+        use_amp=False,
     ):
 
         self.train_loader = train_loader
@@ -51,6 +54,7 @@ class BaseClass:
         self.distil_weight = distil_weight
         self.log = log
         self.logdir = logdir
+        self.amp = use_amp
 
         if self.logdir is not None:
             print(
@@ -82,6 +86,9 @@ class BaseClass:
             self.loss_fn = loss_fn.to(self.device)
         self.ce_fn = nn.CrossEntropyLoss().to(self.device)
         self.metrics = ClassifierMetrics(device=self.device)
+
+        self.scaler_teacher = torch.cuda.amp.GradScaler(enabled=self.amp)
+        self.scaler_student = torch.cuda.amp.GradScaler(enabled=self.amp)
 
     def train_teacher(
         self,
@@ -123,20 +130,25 @@ class BaseClass:
         for ep in tqdm(range(epochs), position=0):
 
             for batch_idx, (data, label) in enumerate(tqdm(self.train_loader, total=epoch_len, position=1)):
+                
                 data = data.to(self.device)
                 label = label.to(self.device)
 
-                out = self.teacher_model(data)
-                if isinstance(out, tuple):
-                    out = out[0]
+                self.optimizer_teacher.zero_grad(set_to_none=True)
 
-                loss = self.ce_fn(out, label)
+                with autocast(enabled=self.amp):
+                    out = self.teacher_model(data)
+                    if isinstance(out, tuple):
+                        out = out[0]
+
+                    loss = self.ce_fn(out, label)
 
                 top1, top5, ece_loss, entropy, virtual_kld = self.metrics(out, label, topk=(1, 5))
 
-                self.optimizer_teacher.zero_grad()
-                loss.backward()
-                self.optimizer_teacher.step()
+                self.scaler_teacher.scale(loss).backward()
+                self.scaler_teacher.step(self.optimizer_teacher)
+                self.scaler_teacher.update()
+
                 if use_scheduler:
                     scheduler_teacher.step()
 
@@ -218,20 +230,24 @@ class BaseClass:
                 data = data.to(self.device)
                 label = label.to(self.device)
 
-                student_out = self.student_model(data)
-                teacher_out = self.teacher_model(data)
-                if isinstance(student_out, tuple):
-                    student_out = student_out[0]
+                self.optimizer_student.zero_grad(set_to_none=True)
 
-                loss = self.calculate_kd_loss(student_out, teacher_out, label)
-                if isinstance(loss, tuple):
-                    loss, ce_loss, divergence = loss
+                with autocast(enabled=self.amp):
+                    student_out = self.student_model(data)
+                    teacher_out = self.teacher_model(data)
+                    if isinstance(student_out, tuple):
+                        student_out = student_out[0]
+
+                    loss = self.calculate_kd_loss(student_out, teacher_out, label)
+                    if isinstance(loss, tuple):
+                        loss, ce_loss, divergence = loss
 
                 top1, top5, ece_loss, entropy, virtual_kld = self.metrics(student_out, label, topk=(1, 5))
 
-                self.optimizer_student.zero_grad()
-                loss.backward()
-                self.optimizer_student.step()
+                self.scaler_student.scale(loss).backward()
+                self.scaler_student.step(self.optimizer_student)
+                self.scaler_student.update()
+
                 if use_scheduler:
                     scheduler_student.step()
 
@@ -329,13 +345,15 @@ class BaseClass:
 
         with torch.no_grad():
             for data, target in self.val_loader:
+                
                 data = data.to(self.device)
                 target = target.to(self.device)
-                output = model(data)
-
-                if isinstance(output, tuple):
-                    output = output[0]
-                outputs.append(output)
+                
+                with autocast(enabled=self.amp):
+                    output = model(data)
+                    if isinstance(output, tuple):
+                        output = output[0]
+                    outputs.append(output)
 
                 # pred = output.argmax(dim=1, keepdim=True)
                 # correct += pred.eq(target.view_as(pred)).sum().item()
