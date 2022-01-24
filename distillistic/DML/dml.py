@@ -166,26 +166,24 @@ class DML:
 
                 for i in range(num_students):
                     student_loss = 0
-                    
-                    with autocast(enabled=self.amp):
-                        if self.use_ensemble:
-                            # Calculate ensemble target w/o applying softmax here
-                            target = self.ensemble_target(student_outputs, i)
-                            # Softmax should be applied in loss_fn
-                            student_loss += self.loss_fn(
-                                student_outputs[i], target.detach())
-                        else:
-                            # Calculate pairwise divergence
-                            for j in range(num_students):
-                                if i == j:
-                                    continue
-                                else:
-                                    student_loss += (1 / (num_students - 1)) * self.loss_fn(
-                                        student_outputs[i], student_outputs[j].detach())
 
-                        ce_loss = F.cross_entropy(student_outputs[i], label)
-                        train_loss = (1 - self.distil_weight) * ce_loss + \
-                        self.distil_weight * student_loss
+                    if self.use_ensemble:
+                        # Calculate ensemble target w/o applying softmax here
+                        target = self.ensemble_target(student_outputs, i)
+                        # Softmax should be applied in loss_fn
+                        student_loss += self.loss_fn(
+                            student_outputs[i], target.detach())
+                    else:
+                        # Calculate pairwise divergence
+                        for j in range(num_students):
+                            if i == j:
+                                continue
+                            else:
+                                student_loss += (1 / (num_students - 1)) * self.loss_fn(
+                                    student_outputs[i], student_outputs[j].detach())
+
+                    ce_loss = F.cross_entropy(student_outputs[i], label)
+                    train_loss = (1 - self.distil_weight) * ce_loss + self.distil_weight * student_loss
 
                     top1, top5, ece_loss, entropy, virtual_kld = self.metrics(student_outputs[i], label, topk=(1, 5))
                     cohort_acc += (1 / num_students) * top1
@@ -281,9 +279,10 @@ class DML:
                 
                 with autocast(enabled=self.amp):
                     output = model(data)
-                    if isinstance(output, tuple):
-                        output = output[0]
-                    outputs.append(output)
+                
+                if isinstance(output, tuple):
+                    output = output[0]
+                outputs.append(output)
 
                 top1, top5 = accuracy(output, target, topk=(1, 5))
                 top1_acc += top1

@@ -141,7 +141,7 @@ class BaseClass:
                     if isinstance(out, tuple):
                         out = out[0]
 
-                    loss = self.ce_fn(out, label)
+                loss = self.ce_fn(out, label)
 
                 top1, top5, ece_loss, entropy, virtual_kld = self.metrics(out, label, topk=(1, 5))
 
@@ -238,9 +238,9 @@ class BaseClass:
                     if isinstance(student_out, tuple):
                         student_out = student_out[0]
 
-                    loss = self.calculate_kd_loss(student_out, teacher_out, label)
-                    if isinstance(loss, tuple):
-                        loss, ce_loss, divergence = loss
+                loss = self.calculate_kd_loss(student_out, teacher_out, label)
+                if isinstance(loss, tuple):
+                    loss, ce_loss, divergence = loss
 
                 top1, top5, ece_loss, entropy, virtual_kld = self.metrics(student_out, label, topk=(1, 5))
 
@@ -351,9 +351,10 @@ class BaseClass:
                 
                 with autocast(enabled=self.amp):
                     output = model(data)
-                    if isinstance(output, tuple):
-                        output = output[0]
-                    outputs.append(output)
+                
+                if isinstance(output, tuple):
+                    output = output[0]
+                outputs.append(output)
 
                 # pred = output.argmax(dim=1, keepdim=True)
                 # correct += pred.eq(target.view_as(pred)).sum().item()

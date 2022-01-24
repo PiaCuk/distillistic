@@ -132,10 +132,10 @@ class VirtualTeacher:
                     if isinstance(student_out, tuple):
                         student_out = student_out[0]
 
-                    loss = self.calculate_kd_loss(
-                        student_out, label, smooth_teacher=smooth_teacher)
-                    if isinstance(loss, tuple):
-                        loss, ce_loss, divergence = loss
+                loss = self.calculate_kd_loss(
+                    student_out, label, smooth_teacher=smooth_teacher)
+                if isinstance(loss, tuple):
+                    loss, ce_loss, divergence = loss
 
                 top1, top5, ece_loss, entropy, _ = self.metrics(student_out, label, topk=(1, 5))
 
@@ -233,11 +233,10 @@ class VirtualTeacher:
                 
                 with autocast(enabled=self.amp):
                     output = model(data)
-                    if isinstance(output, tuple):
-                        output = output[0]
+                
+                if isinstance(output, tuple):
+                    output = output[0]
 
-                # pred = output.argmax(dim=1, keepdim=True)
-                # correct += pred.eq(target.view_as(pred)).sum().item()
                 top1, top5 = accuracy(output, target, topk=(1, 5))
                 top1_acc += top1
                 top5_acc += top5
