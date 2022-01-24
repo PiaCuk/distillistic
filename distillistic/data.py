@@ -3,12 +3,6 @@ import random
 
 import numpy as np
 import torch
-from ffcv.fields.basics import IntDecoder
-from ffcv.fields.rgb_image import (CenterCropRGBImageDecoder,
-                                   RandomResizedCropRGBImageDecoder)
-from ffcv.loader import Loader, OrderOption
-from ffcv.transforms import (NormalizeImage, RandomHorizontalFlip, Squeeze,
-                             ToDevice, ToTensor, ToTorchImage)
 from torchvision import datasets, transforms
 
 
@@ -114,6 +108,13 @@ def FFCV_ImageNet_loader(data_path, batch_size, device, train, workers=4, in_mem
     :param in_memory (bool): Does the dataset fit in memory?
     :param use_amp (bool): True to use Automated Mixed Precision
     """
+    from ffcv.fields.basics import IntDecoder
+    from ffcv.fields.rgb_image import (CenterCropRGBImageDecoder,
+                                    RandomResizedCropRGBImageDecoder)
+    from ffcv.loader import Loader, OrderOption
+    from ffcv.transforms import (NormalizeImage, RandomHorizontalFlip, Squeeze,
+                                ToDevice, ToTensor, ToTorchImage)
+    
     img_type = np.float16 if use_amp else np.float32
 
     if train:
