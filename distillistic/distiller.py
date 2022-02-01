@@ -3,6 +3,7 @@ import torch
 from distillistic.DML import DML
 from distillistic.Vanilla import VanillaKD
 from distillistic.Tf_KD import VirtualTeacher
+from distillistic.Baseline import Baseline
 from distillistic.models import resnet18, resnet50
 from distillistic.utils import CustomKLDivLoss
 
@@ -54,25 +55,32 @@ def create_distiller(
         student_cohort = [resnet18(**student_params) for i in range(num_students)]
         student_optimizers = [_create_optim(
             student_cohort[i].parameters(), lr, adam=use_adam) for i in range(num_students)]
-        # Define DML with logging to Tensorboard
+        # Define DML with logging to WandB
         distiller = DML(student_cohort, train_loader, test_loader, student_optimizers, loss_fn=loss_fn, distil_weight=distil_weight,
                         log=True, device=device, use_ensemble=True if algo == "dml_e" else False, use_amp=use_amp)
     elif algo == "tfkd":
         student = resnet18(**student_params)
         student_optimizer = _create_optim(
             student.parameters(), lr, adam=use_adam)
-        # Define TfKD with logging to Tensorboard
+        # Define TfKD with logging to WandB
         distiller = VirtualTeacher(student, train_loader, test_loader, student_optimizer,
             temp=temperature, distil_weight=distil_weight, log=True, device=device, use_amp=use_amp)
-    else:
+    elif algo == "vanilla":
         teacher = resnet50(num_classes=num_classes, pretrained=True)
         student = resnet18(**student_params)
         teacher_optimizer = _create_optim(
             teacher.parameters(), lr, adam=use_adam)
         student_optimizer = _create_optim(
             student.parameters(), lr, adam=use_adam)
-        # Define KD with logging to Tensorboard
+        # Define KD with logging to WandB
         distiller = VanillaKD(teacher, student, train_loader, test_loader, teacher_optimizer, student_optimizer,
                               temp=temperature, distil_weight=distil_weight, log=True, device=device, use_amp=use_amp)
+    else:
+        # Supervised learning baseline
+        student = resnet18(**student_params)
+        student_optimizer = _create_optim(
+            student.parameters(), lr, adam=use_adam)
+        distiller = Baseline(student, train_loader, test_loader, student_optimizer, device=device, log=True, use_amp=use_amp)
+        
 
     return distiller

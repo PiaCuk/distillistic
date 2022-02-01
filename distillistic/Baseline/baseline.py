@@ -130,7 +130,6 @@ class Baseline:
                         "student/entropy": entropy,
                         "student/virtual_kld": virtual_kld,
                         "student/lr": lr_scheduler.get_last_lr()[0],
-                        "student/distil_weight": self.distil_weight,
                         "epoch": ep,
                     })
 

@@ -92,7 +92,7 @@ def ImageNet_experiment(
                 **params, schedule_distil_weight=schedule_distil_weight)
         elif algo == "tfkd":
             acc = distiller.train_student(**params, smooth_teacher=False)
-        else:
+        elif algo == "vanilla":
             if classes != 1000:
                 distiller.train_teacher(epochs=int(epochs / 2), save_model_path=run_path, use_scheduler=use_scheduler)
             
@@ -102,6 +102,8 @@ def ImageNet_experiment(
                         "teacher/val_top5_acc": teacher5,
                     }, commit=False)
             
+            acc = distiller.train_student(**params)
+        else:
             acc = distiller.train_student(**params)
 
         best_acc_list.append(acc)
