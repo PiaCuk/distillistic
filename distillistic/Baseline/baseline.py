@@ -151,8 +151,6 @@ class Baseline:
                             "epoch": ep,
                         })
 
-            self.post_epoch_call(ep)
-
         if save_model:
             torch.save(self.best_student_model_weights,
                        os.path.join(save_model_path, "student.pt"))
