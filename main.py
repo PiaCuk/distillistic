@@ -25,7 +25,7 @@ if __name__ == "__main__":
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 200,
+            "epochs": 20,
             "batch_size": 160,
             "data_path": dataset_path,
             "save_path": save_path,
