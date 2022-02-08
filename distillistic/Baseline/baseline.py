@@ -130,7 +130,6 @@ class Baseline:
                         "student/entropy": entropy,
                         "student/virtual_kld": virtual_kld,
                         "student/lr": lr_scheduler.get_last_lr()[0],
-                        "student/distil_weight": self.distil_weight,
                         "epoch": ep,
                     })
 
@@ -151,8 +150,6 @@ class Baseline:
                             "student/best_acc": best_acc,
                             "epoch": ep,
                         })
-
-            self.post_epoch_call(ep)
 
         if save_model:
             torch.save(self.best_student_model_weights,

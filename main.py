@@ -18,15 +18,15 @@ if __name__ == "__main__":
         classes = None
 
     dataset_path = f"../data/{dataset}"
-    save_path = f"./experiments/{dataset}/debug"
+    save_path = f"./experiments/{dataset}/session2"
 
     # Use new universal main
-    for algo in ["tfkd"]:  # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["baseline"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 2,
-            "batch_size": 64,
+            "epochs": 20,
+            "batch_size": 160,
             "data_path": dataset_path,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
