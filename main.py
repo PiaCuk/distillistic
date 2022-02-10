@@ -18,14 +18,14 @@ if __name__ == "__main__":
         classes = None
 
     dataset_path = f"../data/{dataset}"
-    save_path = f"./experiments/{dataset}/session2"
+    save_path = f"./experiments/{dataset}/debug"
 
     # Use new universal main
     for algo in ["baseline"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 20,
+            "epochs": 1,
             "batch_size": 160,
             "data_path": dataset_path,
             "save_path": save_path,
@@ -42,6 +42,7 @@ if __name__ == "__main__":
             "classes": classes,
             "use_amp": True,
             "use_ffcv": dataset == "ffcv-imagenet",
+            "downscale": 4,
         }
 
         if dataset == "Fashion-MNIST":

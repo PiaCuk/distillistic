@@ -29,6 +29,7 @@ def ImageNet_experiment(
     classes=1000,
     use_amp=False,
     use_ffcv=False,
+    downscale=1,
 ):
     """
     Universal main function for my Knowledge Distillation experiments
@@ -52,6 +53,7 @@ def ImageNet_experiment(
     :param classes (int): number of classes in training data. Default for ImageNet is 1000
     :param use_amp (bool): True to use Automated Mixed Precision
     :param use_ffcv (bool): True to load data with FFCV
+    :param downscale (int): Downscaling factor. 1 for no downscaling
     """
     # Set device to be trained on
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -59,12 +61,11 @@ def ImageNet_experiment(
     g = set_seed(seed) if seed is not None else None
     workers = 12 if torch.cuda.is_available() else 4
 
-    # Create DataLoaders
-    print(f"Training with AMP is set to {use_amp}.")
+    print(f"Creating DataLoaders. \nTraining with AMP is set to {use_amp}.")
     train_loader = ImageNet_loader(data_path, batch_size, device,
-                                   train=True, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv)
+                                   train=True, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv, downscale=downscale)
     test_loader = ImageNet_loader(data_path, batch_size, device,
-                                  train=False, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv)
+                                  train=False, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv, downscale=downscale)
 
     best_acc_list = []
 

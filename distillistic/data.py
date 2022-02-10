@@ -61,29 +61,39 @@ def FMNIST_loader(data_path, batch_size, train, generator=None, workers=4, weigh
     )
 
 
-def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4):
+IMAGENET_SIZE = 224
+
+
+def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4, downscale=1):
     data_dir = os.path.join(
         data_path, 'train') if train else os.path.join(data_path, 'val')
     # Transforms
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
     if train:
-        trans = transforms.Compose([
-            transforms.RandomResizedCrop(224),
+        trans = [
+            transforms.RandomResizedCrop(IMAGENET_SIZE),
             # transforms.RandomHorizontalFlip(),
             transforms.RandAugment(),
             transforms.ToTensor(),
             normalize,
-        ])
+        ]
     else:
-        trans = transforms.Compose([
+        trans = [
             transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.CenterCrop(IMAGENET_SIZE),
             transforms.ToTensor(),
             normalize,
-        ])
+        ]
 
-    dataset = datasets.ImageFolder(data_dir, trans)
+    if (downscale > 1) and ((downscale % 2) == 0):
+        target_size = int(IMAGENET_SIZE / downscale)
+        print(f"Downscaling images to {target_size}.")
+        trans.append(transforms.Resize(target_size))
+    else:
+        print("Only downscale by multiples of 2. Not downscaling.")
+
+    dataset = datasets.ImageFolder(data_dir, transforms.Compose(trans))
 
     return torch.utils.data.DataLoader(
         dataset,
@@ -99,8 +109,8 @@ def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4):
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
-RES_TUPLE = (224, 224)
-DEFAULT_CROP_RATIO = 224/256
+RES_TUPLE = (IMAGENET_SIZE, IMAGENET_SIZE)
+DEFAULT_CROP_RATIO = IMAGENET_SIZE / 256
 
 
 def FFCV_ImageNet_loader(data_path, batch_size, device, train, workers=4, in_memory=False, use_amp=True):
@@ -161,11 +171,22 @@ def FFCV_ImageNet_loader(data_path, batch_size, device, train, workers=4, in_mem
     return loader
 
 
-def ImageNet_loader(data_path, batch_size, device, train, generator=None, workers=4, use_amp=False, use_ffcv=False):
+def ImageNet_loader(data_path, batch_size, device, train, generator=None, workers=4, use_amp=False, use_ffcv=False, downscale=1):
+    """
+    :param data_path (str): Path to data
+    :param batch_size (int): Batch size for DataLoader
+    :param device (str): Device used for training; 'cpu' for cpu and 'cuda' for gpu
+    :param train (bool): True for training set, False for validation set
+    :param generator (torch.Generator): Generator for random numbers in DataLoader
+    :param workers (int): Number of workers for DataLoader
+    :param use_amp (bool): True to use Automatic Mixed Precision. Only used when use_ffcv=True
+    :param use_ffcv (bool): True to load data with FFCV
+    :param downscale (int): Downscaling factor. 1 for no downscaling
+    """
     print(f"Load data with FFCV is set to {use_ffcv}.")
     if use_ffcv:
         ffcv_name = "train_500_0.50_90.ffcv" if train else "val_500_0.50_90.ffcv"
         ffcv_path = os.path.join(data_path, ffcv_name)
         return FFCV_ImageNet_loader(ffcv_path, batch_size, device, train, workers, use_amp=use_amp)
     else:
-        return _ImageNet_loader(data_path, batch_size, train, generator, workers)
+        return _ImageNet_loader(data_path, batch_size, train, generator, workers, downscale)
