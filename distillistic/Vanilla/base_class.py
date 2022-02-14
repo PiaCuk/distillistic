@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import wandb
 from torch.cuda.amp import autocast
+from torchvision.transforms import Resize
 from tqdm import tqdm
 
 from distillistic.utils import ClassifierMetrics, accuracy
@@ -27,6 +28,7 @@ class BaseClass:
     :param log (bool): True if logging required
     :param logdir (str): DEPRECATED Directory for storing logs
     :param use_amp (bool): True to use Automated Mixed Precision
+    :param downscale (int): Downscaling factor. 1 for no downscaling
     """
 
     def __init__(
@@ -44,6 +46,7 @@ class BaseClass:
         log=False,
         logdir=None,
         use_amp=False,
+        downscale=1
     ):
 
         self.train_loader = train_loader
@@ -89,6 +92,13 @@ class BaseClass:
 
         self.scaler_teacher = torch.cuda.amp.GradScaler(enabled=self.amp)
         self.scaler_student = torch.cuda.amp.GradScaler(enabled=self.amp)
+
+        self.downscale = downscale
+        if (self.downscale > 1) and ((self.downscale % 2) == 0):
+            img_shape = self.train_loader.dataset[0][0].shape
+            target_size = int(img_shape[1] / self.downscale)
+            print(f"Downscaling images to {target_size}.")
+            self.resize = Resize(target_size)
 
     def train_teacher(
         self,
@@ -229,6 +239,8 @@ class BaseClass:
 
                 data = data.to(self.device)
                 label = label.to(self.device)
+                if (self.downscale > 1) and ((self.downscale % 2) == 0):
+                    data = self.resize(data)
 
                 self.optimizer_student.zero_grad(set_to_none=True)
 
@@ -330,7 +342,7 @@ class BaseClass:
 
         raise NotImplementedError
 
-    def _evaluate_model(self, model, verbose=True):
+    def _evaluate_model(self, model, resize=False, verbose=True):
         """
         Evaluate the given model's accuaracy over val set.
         For internal use only.
@@ -348,6 +360,8 @@ class BaseClass:
                 
                 data = data.to(self.device)
                 target = target.to(self.device)
+                if resize:
+                    data = self.resize(data)
                 
                 with autocast(enabled=self.amp):
                     output = model(data)
@@ -381,7 +395,13 @@ class BaseClass:
             model = deepcopy(self.teacher_model).to(self.device)
         else:
             model = deepcopy(self.student_model).to(self.device)
-        _, top1, top5 = self._evaluate_model(model, verbose=verbose)
+        
+        if (self.downscale > 1) and ((self.downscale % 2) == 0) and not teacher:
+            use_resize = True
+        else:
+            use_resize = False
+        
+        _, top1, top5 = self._evaluate_model(model, resize=use_resize, verbose=verbose)
 
         return top1, top5
 

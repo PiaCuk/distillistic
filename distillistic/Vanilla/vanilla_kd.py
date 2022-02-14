@@ -38,6 +38,7 @@ class VanillaKD(BaseClass):
         log=False,
         logdir="./experiments",
         use_amp=False,
+        downscale=1,
     ):
         if loss_fn is not None:
             print("The argument loss_fn is deprecated. The loss is calculated internally.")
@@ -56,6 +57,7 @@ class VanillaKD(BaseClass):
             log,
             logdir,
             use_amp,
+            downscale,
         )
 
     def calculate_kd_loss(self, y_pred_student, y_pred_teacher, y_true):

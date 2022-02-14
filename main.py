@@ -21,12 +21,12 @@ if __name__ == "__main__":
     save_path = f"./experiments/{dataset}/debug"
 
     # Use new universal main
-    for algo in ["baseline"]:  # "dml", "dml_e", "tfkd", "vanilla"
+    for algo in ["dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
         params = {
             "algo": algo,
             "runs": 1,
-            "epochs": 1,
-            "batch_size": 160,
+            "epochs": 20,
+            "batch_size": 1024,
             "data_path": dataset_path,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             "classes": classes,
             "use_amp": True,
             "use_ffcv": dataset == "ffcv-imagenet",
-            "downscale": 4,
+            "downscale": 8,
         }
 
         if dataset == "Fashion-MNIST":

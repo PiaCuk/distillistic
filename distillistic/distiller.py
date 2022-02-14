@@ -30,6 +30,7 @@ def create_distiller(
     pretrained=False,
     use_adam=True,
     use_amp=False,
+    downscale=1,
 ):
     """
     Create distillers for benchmarking.
@@ -47,6 +48,7 @@ def create_distiller(
     :param pretrained (bool): True to use pretrained torchvision models
     :param use_adam (bool): True to use Adam optim
     :param use_amp (bool): True to use Automated Mixed Precision
+    :param downscale (int): Downscaling factor. 1 for no downscaling
     """
     student_params = {"num_classes": num_classes, "pretrained": pretrained, "last_layer_only": pretrained}
 
@@ -74,7 +76,7 @@ def create_distiller(
             student.parameters(), lr, adam=use_adam)
         # Define KD with logging to WandB
         distiller = VanillaKD(teacher, student, train_loader, test_loader, teacher_optimizer, student_optimizer,
-                              temp=temperature, distil_weight=distil_weight, log=True, device=device, use_amp=use_amp)
+                              temp=temperature, distil_weight=distil_weight, log=True, device=device, use_amp=use_amp, downscale=downscale)
     else:
         # Supervised learning baseline
         student = resnet18(**student_params)

@@ -67,6 +67,7 @@ IMAGENET_SIZE = 224
 def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4, downscale=1):
     data_dir = os.path.join(
         data_path, 'train') if train else os.path.join(data_path, 'val')
+    print("Creating {} DataLoader.".format("Train" if train else "Validation"))
     # Transforms
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
@@ -91,7 +92,7 @@ def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4, do
         print(f"Downscaling images to {target_size}.")
         trans.append(transforms.Resize(target_size))
     else:
-        print("Only downscale by multiples of 2. Not downscaling.")
+        print("Not downscaling in DataLoader.")
 
     dataset = datasets.ImageFolder(data_dir, transforms.Compose(trans))
 
@@ -183,8 +184,8 @@ def ImageNet_loader(data_path, batch_size, device, train, generator=None, worker
     :param use_ffcv (bool): True to load data with FFCV
     :param downscale (int): Downscaling factor. 1 for no downscaling
     """
-    print(f"Load data with FFCV is set to {use_ffcv}.")
     if use_ffcv:
+        print(f"Load data with FFCV is set to {use_ffcv}.")
         ffcv_name = "train_500_0.50_90.ffcv" if train else "val_500_0.50_90.ffcv"
         ffcv_path = os.path.join(data_path, ffcv_name)
         return FFCV_ImageNet_loader(ffcv_path, batch_size, device, train, workers, use_amp=use_amp)

@@ -62,10 +62,23 @@ def ImageNet_experiment(
     workers = 12 if torch.cuda.is_available() else 4
 
     print(f"Creating DataLoaders. \nTraining with AMP is set to {use_amp}.")
+    if downscale > 1:
+        if algo != "vanilla":
+            downscale_data = downscale
+            downscale_model = 1
+        else:
+            downscale_data = 1
+            downscale_model = downscale
+    else:
+        downscale_data = downscale
+        downscale_model = downscale
+    
     train_loader = ImageNet_loader(data_path, batch_size, device,
-                                   train=True, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv, downscale=downscale)
+                                   train=True, generator=g, workers=workers, 
+                                   use_amp=use_amp, use_ffcv=use_ffcv, downscale=downscale_data)
     test_loader = ImageNet_loader(data_path, batch_size, device,
-                                  train=False, generator=g, workers=workers, use_amp=use_amp, use_ffcv=use_ffcv, downscale=downscale)
+                                  train=False, generator=g, workers=workers, 
+                                  use_amp=use_amp, use_ffcv=use_ffcv, downscale=downscale_data)
 
     best_acc_list = []
 
@@ -82,7 +95,7 @@ def ImageNet_experiment(
         distiller = create_distiller(
             algo, train_loader, test_loader, device, num_classes=classes, loss_fn=loss_fn, lr=lr, 
             distil_weight=distil_weight, temperature=temperature, num_students=num_students, pretrained=use_pretrained,
-            use_amp=use_amp
+            use_amp=use_amp, downscale=downscale_model
         )
 
         params = {"epochs": epochs, "save_model": True, "save_model_path": run_path, "use_scheduler": use_scheduler}
