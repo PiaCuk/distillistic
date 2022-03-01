@@ -18,15 +18,48 @@ if __name__ == "__main__":
         classes = None
 
     dataset_path = f"../data/{dataset}"
-    save_path = f"./experiments/{dataset}/debug"
+    save_path = f"./experiments/{dataset}/cross_session0"
 
     # Use new universal main
-    for algo in ["dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
+    for idx, scale in enumerate([42, 84, 168]):
+        for algo in ["vanilla", "baseline", "dml"]:  # "dml", "dml_e", "tfkd", "vanilla"
+            # Already ran sessions 0-2
+            save_path = f"./experiments/{dataset}/cross_session{3+idx}"
+            params = {
+                "algo": algo,
+                "runs": 1,
+                "epochs": 20,
+                "batch_size": 1024 if scale < 120 else 512,
+                "data_path": dataset_path,
+                "save_path": save_path,
+                "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
+                "lr": 0.001,
+                "distil_weight": 0.5,
+                "temperature": 20.0 if algo != "tfkd" else 1.0,
+                "num_students": 3,
+                "use_pretrained": False,
+                "use_scheduler": True,
+                "use_weighted_dl": False,
+                "schedule_distil_weight": False,
+                "seed": 42,
+                "classes": classes,
+                "use_amp": True,
+                "use_ffcv": dataset == "ffcv-imagenet",
+                "downscale": tuple(scale, scale),
+            }
+
+            if dataset == "Fashion-MNIST":
+                FMNIST_experiment(**params)
+            else:
+                ImageNet_experiment(**params)
+    
+    for idx, scale in enumerate([42, 84, 168]):
+        save_path = f"./experiments/{dataset}/cross_session{3+idx}"
         params = {
-            "algo": algo,
+            "algo": "vanilla",
             "runs": 1,
             "epochs": 20,
-            "batch_size": 1024,
+            "batch_size": 1024 if scale < 120 else 512,
             "data_path": dataset_path,
             "save_path": save_path,
             "loss_fn": CustomKLDivLoss(apply_softmax=algo != "dml_e"),
@@ -42,7 +75,7 @@ if __name__ == "__main__":
             "classes": classes,
             "use_amp": True,
             "use_ffcv": dataset == "ffcv-imagenet",
-            "downscale": 8,
+            "downscale": tuple(scale, scale),
         }
 
         if dataset == "Fashion-MNIST":
