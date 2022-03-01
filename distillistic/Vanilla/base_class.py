@@ -94,7 +94,7 @@ class BaseClass:
         self.scaler_student = torch.cuda.amp.GradScaler(enabled=self.amp)
 
         self.downscale = downscale
-        if (self.downscale > 1) and ((self.downscale % 2) == 0):
+        if check_downscale(self.downscale):
             img_shape = self.train_loader.dataset[0][0].shape
             target_size = int(img_shape[1] / self.downscale)
             print(f"Downscaling images to {target_size}.")
@@ -239,7 +239,7 @@ class BaseClass:
 
                 data = data.to(self.device)
                 label = label.to(self.device)
-                if (self.downscale > 1) and ((self.downscale % 2) == 0):
+                if check_downscale(self.downscale):
                     data = self.resize(data)
 
                 self.optimizer_student.zero_grad(set_to_none=True)
@@ -396,7 +396,7 @@ class BaseClass:
         else:
             model = deepcopy(self.student_model).to(self.device)
         
-        if (self.downscale > 1) and ((self.downscale % 2) == 0) and not teacher:
+        if check_downscale(self.downscale) and not teacher:
             use_resize = True
         else:
             use_resize = False
@@ -427,3 +427,12 @@ class BaseClass:
         """
 
         pass
+
+
+def check_downscale(x) -> bool:
+    if isinstance(x, tuple):
+        return True
+    elif isinstance(x, int):
+        return ((x > 1) and ((x % 2) == 0))
+    else:
+        return False

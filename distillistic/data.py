@@ -86,13 +86,17 @@ def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4, do
             transforms.ToTensor(),
             normalize,
         ]
-
-    if (downscale > 1) and ((downscale % 2) == 0):
-        target_size = int(IMAGENET_SIZE / downscale)
+    
+    if isinstance(downscale, tuple):
         print(f"Downscaling images to {target_size}.")
         trans.append(transforms.Resize(target_size))
-    else:
-        print("Not downscaling in DataLoader.")
+    elif isinstance(downscale, int):
+        if (downscale > 1) and ((downscale % 2) == 0):
+            target_size = int(IMAGENET_SIZE / downscale)
+            print(f"Downscaling images to {target_size}.")
+            trans.append(transforms.Resize(target_size))
+        else:
+            print("Not downscaling in DataLoader.")
 
     dataset = datasets.ImageFolder(data_dir, transforms.Compose(trans))
 
