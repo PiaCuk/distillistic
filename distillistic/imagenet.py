@@ -59,10 +59,10 @@ def ImageNet_experiment(
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # Set seed for all libraries and return torch.Generator
     g = set_seed(seed) if seed is not None else None
-    workers = 12 if torch.cuda.is_available() else 4
+    workers = 4 # 12 if torch.cuda.is_available() else 4
 
     print(f"Creating DataLoaders. \nTraining with AMP is set to {use_amp}.")
-    if downscale > 1:
+    if downscale != 1:
         if algo != "vanilla":
             downscale_data = downscale
             downscale_model = 1

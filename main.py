@@ -45,7 +45,7 @@ if __name__ == "__main__":
                 "classes": classes,
                 "use_amp": True,
                 "use_ffcv": dataset == "ffcv-imagenet",
-                "downscale": tuple(scale, scale),
+                "downscale": (scale, scale),
             }
 
             if dataset == "Fashion-MNIST":
@@ -75,7 +75,7 @@ if __name__ == "__main__":
             "classes": classes,
             "use_amp": True,
             "use_ffcv": dataset == "ffcv-imagenet",
-            "downscale": tuple(scale, scale),
+            "downscale": (scale, scale),
         }
 
         if dataset == "Fashion-MNIST":
