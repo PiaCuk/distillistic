@@ -88,8 +88,8 @@ def _ImageNet_loader(data_path, batch_size, train, generator=None, workers=4, do
         ]
     
     if isinstance(downscale, tuple):
-        print(f"Downscaling images to {target_size}.")
-        trans.append(transforms.Resize(target_size))
+        print(f"Downscaling images to {downscale}.")
+        trans.append(transforms.Resize(downscale))
     elif isinstance(downscale, int):
         if (downscale > 1) and ((downscale % 2) == 0):
             target_size = int(IMAGENET_SIZE / downscale)

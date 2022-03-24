@@ -95,8 +95,12 @@ class BaseClass:
 
         self.downscale = downscale
         if check_downscale(self.downscale):
-            img_shape = self.train_loader.dataset[0][0].shape
-            target_size = int(img_shape[1] / self.downscale)
+            if isinstance(self.downscale, tuple):
+                target_size = self.downscale
+            elif isinstance(self.downscale, int):
+                img_shape = self.train_loader.dataset[0][0].shape
+                target_size = int(img_shape[1] / self.downscale)
+            
             print(f"Downscaling images to {target_size}.")
             self.resize = Resize(target_size)
 
