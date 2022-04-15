@@ -1,7 +1,7 @@
 ![Logo](./distillistic_logo.png)
 
 ## Knowledge distillation algorithms in PyTorch
-This repository holds the source code to Pia Čuk's Master thesis on knowledge distillation algorithms for deep neural networks. The title of the thesis and abstract can be found below.
+This repository holds the source code for Pia Čuk's Master thesis on knowledge distillation algorithms for deep neural networks. The title of the thesis and abstract can be found below.
 
 ## Greater than the Sum of its Parts? A Realistic Perspective on Online Distillation for Efficient Deep Learning
 ### Abstract
@@ -15,18 +15,23 @@ Finally, we propose a novel distillation setup called cross-quality distillation
 
 ### Experiments
 
-We implement the following existing algorihms:
+We implement the following existing algorithms:
 - Knowledge Distillation (KD, Hinton et al., 2015)
 - Deep Mutual Learning (DML, Zhang et al., 2018)
 - Teacher-free Knowledge Distillation with virtual teacher (Tf-KD_virtual, Yuan et al., 2020)
 
 We compare these algorithms on two popular image classification benchmarks, Fashion-MNIST and ImageNet.
 
-Additionally, we introduce a novel distillation setup, namely cross-quality distillation. In cross-quality KD, the teacher is pre-trained on full-resolution images, while the student learns on low resolution. The goal of cross-quality KD is that the student learns meaningful features from the teaching signal, that it could not learn from the low-resolution images alone. We compare cross-quality KD to DML in a set of downscaling experiments.
+Additionally, we introduce a novel distillation setup, namely cross-quality distillation. In cross-quality KD, the teacher is pre-trained on full-resolution images, while the student learns on low resolution. The goal of cross-quality KD is that the student learns meaningful features from the teaching signal that it could not learn from the low-resolution images alone. We compare cross-quality KD to DML in a set of downscaling experiments.
 
+### Resources
+
+The KD, DML, and Tf-KD_virtual implementations were based on the KD_Lib library (Shah et al., 2020). We used the pre-trained ImageNet models from torchvision, a library that is part of the PyTorch framework (Paszke et al., 2019). Both datasets used, Fashion-MNIST and ImageNet, are publicly available.
 
 ## References
 - Hinton, Geoffrey, Oriol Vinyals, and Jeff Dean. "Distilling the knowledge in a neural network." arXiv preprint arXiv:1503.02531 (2015).
 - Naeini, M. P., Cooper, G., & Hauskrecht, M. (2015). "Obtaining well calibrated probabilities using bayesian binning." Twenty-Ninth AAAI Conference on Artificial Intelligence.
+- Paszke, Adam, et al. "PyTorch: An imperative style, high-performance deep learning library." Advances in neural information processing systems 32 (2019).
+- Shah, Het, et al. "KD-Lib: A PyTorch library for knowledge distillation, pruning and quantization." arXiv preprint arXiv:2011.14691 (2020).
 - Yuan, Li, et al. "Revisiting knowledge distillation via label smoothing regularization." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2020.
 - Zhang, Ying, et al. "Deep mutual learning." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2018.
