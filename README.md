@@ -1,2 +1,3 @@
-# distillistic
-Knowledge distillation algorithms in PyTorch.
+![Logo](./distillistic_logo.png)
+
+## Knowledge distillation algorithms in PyTorch.
