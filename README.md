@@ -20,13 +20,15 @@ We implement the following existing algorithms:
 - Deep Mutual Learning (DML, Zhang et al., 2018)
 - Teacher-free Knowledge Distillation with virtual teacher (Tf-KD_virtual, Yuan et al., 2020)
 
-We compare these algorithms on two popular image classification benchmarks, Fashion-MNIST and ImageNet.
+We compare these algorithms on two popular image classification benchmarks, Fashion-MNIST and ImageNet. Our experiments show the instability of DML during training, which prevents the students from learning high-accuracy solutions. We further underpin the general validity of our findings by testing a variety of DML modifications, which all exhibit instability in training.
 
-Additionally, we introduce a novel distillation setup, namely cross-quality distillation. In cross-quality KD, the teacher is pre-trained on full-resolution images, while the student learns on low resolution. The goal of cross-quality KD is that the student learns meaningful features from the teaching signal that it could not learn from the low-resolution images alone. We compare cross-quality KD to DML in a set of downscaling experiments.
+In addition to our analysis of DML, we have shown that Tf-KD_virtual biases the student to under-confident, high-entropy predictions. While this does not degrade the accuracy during training, it does deteriorate the model’s ability to generalize, as our experiments on an unbalanced dataset demonstrate. By omitting the additional smoothing of the teacher and student distributions, we strongly reduce the miscalibration of the student model in Tf-KD_virtual and achieve a competitive performance on Fashion-MNIST and ImageNet.
+
+Additionally, we introduce a novel distillation setup, namely cross-quality distillation. In cross-quality KD, the teacher is pre-trained on full-resolution images, while the student learns on low resolution. With the teaching signal, the student is encouraged to learn meaningful features that it could not learn from the low-resolution images alone. We compare cross-quality KD against DML in a series of downscaling experiments, showing that with KD, a good trade-off between accuracy and resource requirements can be achieved. Furthermore, the experiments again demonstrate the importance of a good calibration of the teaching signal, which also needs to reflect the uncertainty inherent in the learning task. As in previous work, temperature smoothing proves to be a simple yet effective technique to mitigate miscalibration.
 
 ### Resources
 
-The KD, DML, and Tf-KD_virtual implementations were based on the KD_Lib library (Shah et al., 2020). We used the pre-trained ImageNet models from torchvision, a library that is part of the PyTorch framework (Paszke et al., 2019). Both datasets used, Fashion-MNIST and ImageNet, are publicly available.
+The KD, DML, and Tf-KD_virtual implementations were based on the KD-Lib library (Shah et al., 2020). We used the pre-trained ImageNet models from torchvision, a library that is part of the PyTorch framework (Paszke et al., 2019). Both datasets used, Fashion-MNIST and ImageNet, are publicly available.
 
 ## References
 - Hinton, Geoffrey, Oriol Vinyals, and Jeff Dean. "Distilling the knowledge in a neural network." arXiv preprint arXiv:1503.02531 (2015).
